@@ -35,8 +35,10 @@ const ICON_BTN: CSSProperties = { ...TOOL_BTN, padding: '3px 6px', color: '#3347
 export interface ChatWindowProps {
   readonly chat: Chat;
   readonly contact: ResolvedContact;
+  readonly inContacts: boolean;
   readonly myAvatar: string;
   readonly myName: string;
+  readonly onAddContact: () => void;
   readonly onTitleDrag: (e: ReactMouseEvent) => void;
   readonly onFocus: () => void;
   readonly onResize: (e: ReactMouseEvent) => void;
@@ -62,7 +64,7 @@ const DisplayPicture = ({ pic, status, label }: { pic: string; status: StatusKey
 const TBAR_ICON: CSSProperties = { width: 16, height: 16, verticalAlign: 'middle' };
 
 export const ChatWindow = (p: ChatWindowProps) => {
-  const { chat, contact } = p;
+  const { chat, contact, inContacts } = p;
   const info = statusOf(contact.status);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -135,6 +137,35 @@ export const ChatWindow = (p: ChatWindowProps) => {
           <div style={{ color: '#7a8aa0', fontSize: 10 }}>{info.label}</div>
         </div>
       </div>
+
+      {/* not-in-contacts notice (old MSN yellow info bar) */}
+      {!inContacts && (
+        <div
+          style={{
+            ...SIDE_BORDERS,
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '5px 10px',
+            background: 'linear-gradient(180deg,#fffbe0,#ffe9a8)',
+            borderBottom: '1px solid #e3c24a',
+            color: '#7a5a14',
+            fontSize: 11,
+          }}
+        >
+          <span style={{ flexShrink: 0, fontSize: 13, lineHeight: 1 }}>⚠️</span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <RichText text={contact.name} size={13} /> is not in your contact list yet.
+          </span>
+          <button
+            onClick={p.onAddContact}
+            style={{ ...GREEN_BTN, flexShrink: 0, padding: '3px 12px', fontSize: 11 }}
+          >
+            Add to Contacts
+          </button>
+        </div>
+      )}
 
       {/* toolbar */}
       <div

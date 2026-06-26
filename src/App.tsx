@@ -425,8 +425,10 @@ export const App = () => {
               key={chat.pubkey}
               chat={chat}
               contact={resolveContact(state, chat.pubkey)}
+              inContacts={state.follows.includes(chat.pubkey)}
               myAvatar={state.myAvatar}
               myName={state.myName || 'You'}
+              onAddContact={() => nostr.addContact(chat.pubkey, '')}
               onTitleDrag={(e) => {
                 dispatch({ type: 'FOCUS_CHAT', pubkey: chat.pubkey });
                 drag(e, ({ top, left }) => dispatch({ type: 'MOVE_CHAT', pubkey: chat.pubkey, top, left }));
