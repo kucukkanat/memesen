@@ -1,0 +1,25 @@
+{
+  "name": "@memesen/app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MSN Messenger nostalgia — a faithful early-2000s instant-messenger clone in React + Bun.",
+  "scripts": {
+    "dev": "bun --hot ./src/index.html",
+    "build": "bun build ./src/index.html --outdir dist --minify",
+    "start": "bun ./src/index.html",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test src",
+    "test:e2e": "echo 'No E2E suite yet — add Playwright here, kept separate from unit/integration on purpose.' && exit 1"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "typescript": "^5.6.3"
+  }
+}

@@ -1,0 +1,78 @@
+/* Things that can't live in inline styles: keyframes, pseudo-elements,
+   pseudo-classes. Everything visual-but-static otherwise stays close to the
+   markup in the components. */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+#root {
+  font-family: Tahoma, Geneva, sans-serif;
+  font-size: 11px;
+}
+
+@keyframes msn-shake {
+  0%, 100% { transform: translate(0, 0); }
+  12% { transform: translate(-7px, 4px); }
+  24% { transform: translate(8px, -5px); }
+  36% { transform: translate(-8px, -4px); }
+  48% { transform: translate(7px, 5px); }
+  60% { transform: translate(-5px, 3px); }
+  72% { transform: translate(5px, -3px); }
+  84% { transform: translate(-3px, 2px); }
+}
+
+@keyframes msn-wink {
+  0% { transform: scale(0.2) rotate(-25deg); opacity: 0; }
+  25% { transform: scale(1.2) rotate(10deg); opacity: 1; }
+  70% { transform: scale(1) rotate(0); opacity: 1; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+/* Corner alert sliding up from the bottom-right. */
+@keyframes msn-toast {
+  0% { transform: translateY(120%); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+/* Taskbar button flashing orange while a conversation has an unread message. */
+@keyframes msn-taskflash {
+  0%, 50% { filter: brightness(1); }
+  51%, 100% { filter: brightness(1.45); }
+}
+
+.msn-taskbtn:hover { filter: brightness(1.12); }
+
+.msn-scroll::-webkit-scrollbar { width: 16px; }
+.msn-scroll::-webkit-scrollbar-track { background: #e8e8e8; }
+.msn-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #fbfbfb, #c8d4e8);
+  border: 1px solid #9bb0d0;
+}
+
+.msn-field:focus {
+  outline: 1px solid #f0a830;
+  background: #fffbe8;
+}
+
+.msn-link { cursor: pointer; }
+.msn-link:hover { text-decoration: underline; }
+
+.msn-row:hover { background: #eaf2ff !important; }
+
+.msn-statusopt:hover {
+  background: #316ac5;
+  color: #fff;
+}
+
+.msn-toolbtn:hover {
+  border-color: #f0a830 !important;
+  background: #fff7e6 !important;
+}

@@ -1,0 +1,58 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment, cancelling in-progress runs.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      # Quality gate: the deploy only ships if the app is type-safe and green.
+      - run: bun run typecheck
+      - run: bun test src
+
+      # Turns Pages on for the repo on first run, so no manual Settings step.
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - run: bun run build
+
+      # The bundler emits relative asset paths, so the site works unchanged
+      # under the project subpath (kucukkanat.github.io/memesen/). `.nojekyll`
+      # stops Pages from running the output through Jekyll.
+      - run: touch dist/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
