@@ -34,16 +34,16 @@ export const AddContact = (p: AddContactProps) => {
 
       <div style={{ ...SIDE_BORDERS, background: '#fff', borderBottom: '1px solid #06387c', padding: '14px 16px' }}>
         <div style={{ color: '#33476a', fontSize: 11, marginBottom: 12, lineHeight: 1.5 }}>
-          Enter the contact's <b>npub</b>, <b>NIP-05</b> address (name@domain) or hex public key.
+          Enter your friend's <b>contact address</b> (the one they shared with you).
         </div>
 
-        <div style={{ color: '#333', marginBottom: 3 }}>Address:</div>
+        <div style={{ color: '#333', marginBottom: 3 }}>Contact address:</div>
         <input
           value={input}
           autoFocus
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}
-          placeholder="npub1… or alice@nostr.example"
+          placeholder="paste a contact address"
           style={{ width: '100%', padding: '4px 6px', border: '1px solid #7a93b8', fontFamily: 'Tahoma, sans-serif', fontSize: 11, marginBottom: 10 }}
         />
 

@@ -32,12 +32,14 @@ export const resolveContact = (state: AppState, pubkey: string): ResolvedContact
   const profile = state.profiles[pubkey];
   const status =
     pubkey === state.myPubkey ? state.myStatus : presenceStatus(state.presence[pubkey], state.now);
+  // A real profile picture wins; otherwise fall back to a stable bundled avatar.
+  const picture = profile?.picture?.trim();
   return {
     pubkey,
     name: displayName(pubkey, state.petnames[pubkey] ?? '', profile),
     handle: handleOf(pubkey, profile),
     psm: profile?.about ?? '',
     status,
-    avatar: avatarFor(pubkey),
+    avatar: picture ? picture : avatarFor(pubkey),
   };
 };

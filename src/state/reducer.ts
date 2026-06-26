@@ -30,6 +30,7 @@ export const initialState = (now: number): AppState => ({
   relayManagerOpen: false,
   addContactOpen: false,
   shareOpen: false,
+  changePictureOpen: false,
   chats: [],
   zTop: 30,
   now,
@@ -153,6 +154,7 @@ export const reducer = (state: AppState, action: Action): AppState => {
         relayManagerOpen: false,
         addContactOpen: false,
         shareOpen: false,
+        changePictureOpen: false,
         signinTop: null,
         signinLeft: null,
       };
@@ -165,16 +167,26 @@ export const reducer = (state: AppState, action: Action): AppState => {
       return { ...state, myPsm: action.psm };
     case 'SET_MY_NAME':
       return { ...state, myName: action.name };
+    case 'SET_AVATAR':
+      return {
+        ...state,
+        myAvatar: action.picture,
+        profiles: state.myPubkey
+          ? { ...state.profiles, [state.myPubkey]: mergeProfile(state.profiles[state.myPubkey], { picture: action.picture }) }
+          : state.profiles,
+      };
 
     case 'PROFILE_LOADED': {
       const profiles = { ...state.profiles, [action.pubkey]: mergeProfile(state.profiles[action.pubkey], action.profile) };
       if (action.pubkey !== state.myPubkey) return { ...state, profiles };
       const merged = profiles[action.pubkey];
+      const picture = merged?.picture?.trim();
       return {
         ...state,
         profiles,
         myName: merged?.displayName || merged?.name || state.myName,
         myPsm: merged?.about ?? state.myPsm,
+        myAvatar: picture ? picture : state.myAvatar,
       };
     }
     case 'FOLLOWS_LOADED': {
@@ -221,6 +233,8 @@ export const reducer = (state: AppState, action: Action): AppState => {
       return { ...state, addContactOpen: !state.addContactOpen };
     case 'TOGGLE_SHARE':
       return { ...state, shareOpen: !state.shareOpen };
+    case 'TOGGLE_CHANGE_PICTURE':
+      return { ...state, changePictureOpen: !state.changePictureOpen, statusPickerOpen: false };
 
     case 'OPEN_CHAT': {
       const z = state.zTop + 1;

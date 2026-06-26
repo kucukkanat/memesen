@@ -50,4 +50,13 @@ describe('view — resolveContact', () => {
   it('uses my own live status for my pubkey', () => {
     expect(resolveContact(state, ME).status).toBe('busy');
   });
+
+  it('prefers a real profile picture over the derived avatar', () => {
+    const withPic = { ...state, profiles: { [ALICE]: { picture: 'https://x/y.png' } } };
+    expect(resolveContact(withPic, ALICE).avatar).toBe('https://x/y.png');
+  });
+
+  it('falls back to a bundled avatar when there is no picture', () => {
+    expect(resolveContact(state, ALICE).avatar).not.toContain('http');
+  });
 });

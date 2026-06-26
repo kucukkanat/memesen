@@ -19,6 +19,7 @@ export interface BuddyListProps {
   readonly onPickStatus: (s: SelectableStatus) => void;
   readonly onEditPsm: () => void;
   readonly onEditName: () => void;
+  readonly onChangePicture: () => void;
   readonly onToggleGroup: (g: 'online' | 'offline') => void;
   readonly onOpenChat: (pubkey: string) => void;
   readonly onRemoveContact: (pubkey: string) => void;
@@ -110,7 +111,7 @@ export const BuddyList = (p: BuddyListProps) => {
 
       {/* my profile header */}
       <div style={{ ...SIDE_BORDERS, background: 'linear-gradient(180deg,#1f74da,#0c47a4)', padding: '7px 9px', display: 'flex', alignItems: 'center', gap: 9, position: 'relative' }}>
-        <div style={{ position: 'relative' }}>
+        <div onClick={p.onChangePicture} title="Change your display picture" style={{ position: 'relative', cursor: 'pointer' }}>
           <Avatar pic={s.myAvatar} size={48} status={s.myStatus} />
           <div style={{ position: 'absolute', bottom: -3, right: -3 }}><StatusIcon status={s.myStatus} size={15} /></div>
         </div>
@@ -152,7 +153,7 @@ export const BuddyList = (p: BuddyListProps) => {
         <span className="msn-link" onClick={p.onAddContact} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ fontSize: 13 }}>＋</span> Add a Contact
         </span>
-        <span className="msn-link" onClick={p.onShare} title="Copy your public key or invite link" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span className="msn-link" onClick={p.onShare} title="Copy your contact address or invite link" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ fontSize: 12 }}>🔗</span> Share my contact
         </span>
       </div>
@@ -171,7 +172,7 @@ export const BuddyList = (p: BuddyListProps) => {
 
         {p.contacts.length === 0 && (
           <div style={{ padding: '14px 10px', color: '#8a93a0', fontSize: 11, textAlign: 'center', lineHeight: 1.5 }}>
-            Your buddy list is empty.<br />Click <b>Add a Contact</b> to follow someone by npub or NIP-05.
+            Your buddy list is empty.<br />Click <b>Add a Contact</b> to add someone by their contact address.
           </div>
         )}
       </div>
@@ -181,9 +182,9 @@ export const BuddyList = (p: BuddyListProps) => {
         <span style={{ fontSize: 24 }}>🦋</span>
         <div style={{ lineHeight: 1.15 }}>
           <div style={{ fontWeight: 'bold', fontSize: 13, color: '#5a1e00', textShadow: '0 1px 0 rgba(255,255,255,.4)' }}>
-            You're on <span style={{ color: '#c4002a' }}>Nostr</span>!
+            You're <span style={{ color: '#c4002a' }}>connected</span>!
           </div>
-          <div style={{ fontSize: 10 }}>Censorship-resistant · your keys, your contacts</div>
+          <div style={{ fontSize: 10 }}>Private messages · your account, your contacts</div>
         </div>
         <span style={{ position: 'absolute', top: 2, right: 4, fontSize: 8, color: '#8a3a00' }}>Ad</span>
       </div>
@@ -192,11 +193,11 @@ export const BuddyList = (p: BuddyListProps) => {
       <div
         onClick={p.onOpenRelays}
         className="msn-link"
-        title="Manage relays"
+        title="Manage your connection"
         style={{ background: 'linear-gradient(180deg,#f4f8fd,#dde8f5)', border: '1px solid #06387c', borderTop: 'none', borderRadius: '0 0 4px 4px', padding: '5px 9px', display: 'flex', alignItems: 'center', gap: 6, color: '#1a4a9c', cursor: 'pointer' }}
       >
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: p.relaySummary.connected > 0 ? '#3fb53f' : '#c83020', boxShadow: 'inset 0 0 0 1px rgba(0,0,0,.2)' }} />
-        <span>{p.relaySummary.connected}/{p.relaySummary.total} relays connected</span>
+        <span>{p.relaySummary.connected}/{p.relaySummary.total} servers connected</span>
       </div>
     </div>
   );

@@ -104,6 +104,17 @@ describe('reducer — social graph', () => {
     expect(reducer(base(), { type: 'TOGGLE_SHARE' }).shareOpen).toBe(true);
   });
 
+  it('sets my display picture and reflects it into my profile', () => {
+    const s = reducer(signedIn(), { type: 'SET_AVATAR', picture: 'memesen:rocket' });
+    expect(s.myAvatar).toBe('memesen:rocket');
+    expect(s.profiles[ME]?.picture).toBe('memesen:rocket');
+  });
+
+  it('adopts a loaded profile picture for my own header', () => {
+    const s = reducer(signedIn(), { type: 'PROFILE_LOADED', pubkey: ME, profile: { picture: 'https://x/y.png' } });
+    expect(s.myAvatar).toBe('https://x/y.png');
+  });
+
   it('adds and removes contacts and closes the add dialog', () => {
     const added = run(signedIn(),
       { type: 'TOGGLE_ADD_CONTACT' },

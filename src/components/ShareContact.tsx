@@ -41,7 +41,7 @@ export const ShareContact = (p: ShareContactProps) => (
         </div>
       </div>
 
-      <div style={{ color: '#333', marginBottom: 3 }}>Your public key (npub):</div>
+      <div style={{ color: '#333', marginBottom: 3 }}>Your contact address:</div>
       <Field value={p.npub} onCopy={p.onCopyNpub} />
 
       <div style={{ color: '#333', marginBottom: 3 }}>Invite link (one-click add):</div>

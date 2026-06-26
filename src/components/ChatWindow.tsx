@@ -259,7 +259,7 @@ export const ChatWindow = (p: ChatWindowProps) => {
 
       {/* footer */}
       <div style={{ position: 'relative', flexShrink: 0, background: 'linear-gradient(180deg,#f4f8fd,#dde8f5)', border: '1px solid #06387c', borderTop: 'none', borderRadius: '0 0 4px 4px', padding: '4px 9px', color: '#7a8aa0', fontSize: 10 }}>
-        {contact.status === 'offline' ? 'This contact is offline. Your message will arrive when they reconnect.' : 'Encrypted with NIP-17 · end-to-end'}
+        {contact.status === 'offline' ? 'This contact is offline. Your message will arrive when they reconnect.' : 'This conversation is private and encrypted'}
         {/* resize grip */}
         <div
           onMouseDown={p.onResize}

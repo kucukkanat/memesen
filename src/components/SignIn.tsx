@@ -59,7 +59,7 @@ export const SignIn = (p: SignInProps) => {
         <div style={{ background: 'linear-gradient(180deg,#aacef5,#dcecfb)', padding: 16, display: 'flex', alignItems: 'center', gap: 11, borderBottom: '1px solid #b0c6e6' }}>
           <span style={{ display: 'flex', filter: 'drop-shadow(1px 2px 2px rgba(0,0,0,.25))' }}><Butterfly size={42} /></span>
           <div style={{ lineHeight: 1.1 }}>
-            <div style={{ fontSize: 9, color: '#5a7aa8', fontWeight: 'bold' }}>Nostr</div>
+            <div style={{ fontSize: 9, color: '#5a7aa8', fontWeight: 'bold' }}>Windows</div>
             <div style={{ fontSize: 19, fontWeight: 'bold', color: '#1a4a9c', letterSpacing: '.3px' }}>Messenger</div>
           </div>
         </div>
@@ -95,7 +95,7 @@ export const SignIn = (p: SignInProps) => {
                       <div style={{ color: '#8a93a0', fontSize: 9 }}>{shortNpub(i.pubkey)}</div>
                     </div>
                     <span
-                      title="Remove this identity"
+                      title="Remove this account"
                       onClick={(e) => { e.stopPropagation(); p.onRemove(i.pubkey); }}
                       style={{ color: '#b04030', fontSize: 11, padding: '0 3px', cursor: 'pointer' }}
                     >
@@ -126,13 +126,13 @@ export const SignIn = (p: SignInProps) => {
             </>
           ) : (
             <div style={{ color: '#444', fontSize: 11, lineHeight: 1.5, marginBottom: 14 }}>
-              No identities yet. Create a fresh Nostr key or import an existing&nbsp;<code>nsec</code> to get started.
+              No accounts yet. Create a new one, or import an existing account to get started.
             </div>
           )}
 
           <div style={{ marginTop: 16, color: '#2a5db0', display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'center' }}>
-            <span className="msn-link" onClick={p.onCreate}>Create a new identity</span>
-            <span className="msn-link" onClick={p.onImport}>Import a key (nsec)</span>
+            <span className="msn-link" onClick={p.onCreate}>Create a new account</span>
+            <span className="msn-link" onClick={p.onImport}>Import an existing account</span>
           </div>
         </div>
       </div>

@@ -24,6 +24,7 @@ export interface NostrCommands {
   readonly setStatus: (status: SelectableStatus) => void;
   readonly setPsm: (psm: string) => void;
   readonly setName: (name: string) => void;
+  readonly setAvatar: (picture: string) => void;
   readonly addContact: (pubkey: string, petname: string) => void;
   readonly removeContact: (pubkey: string) => void;
   /** One-shot fetch of a pubkey's profile/presence (e.g. for an invite preview). */
@@ -146,6 +147,14 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
     clientRef.current?.publishProfile(profile);
   }, [dispatch]);
 
+  const setAvatar = useCallback((picture: string) => {
+    dispatch({ type: 'SET_AVATAR', picture });
+    const s = stateRef.current;
+    if (!s.myPubkey) return;
+    const profile: Profile = { ...s.profiles[s.myPubkey], picture };
+    clientRef.current?.publishProfile(profile);
+  }, [dispatch]);
+
   const addContact = useCallback((pubkey: string, petname: string) => {
     dispatch({ type: 'ADD_CONTACT', pubkey, petname });
     const client = clientRef.current;
@@ -161,5 +170,5 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
 
   const lookup = useCallback((pubkey: string) => clientRef.current?.fetchProfile(pubkey), []);
 
-  return { sendText, sendNudge, sendWink, setStatus, setPsm, setName, addContact, removeContact, lookup };
+  return { sendText, sendNudge, sendWink, setStatus, setPsm, setName, setAvatar, addContact, removeContact, lookup };
 };

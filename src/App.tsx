@@ -19,6 +19,7 @@ import { BuddyList } from './components/BuddyList';
 import { ChatWindow } from './components/ChatWindow';
 import { RelayManager } from './components/RelayManager';
 import { AddContact } from './components/AddContact';
+import { ChangePicture } from './components/ChangePicture';
 import { ShareContact } from './components/ShareContact';
 import { InviteDialog } from './components/InviteDialog';
 import { ToastStack } from './components/Toasts';
@@ -228,7 +229,7 @@ export const App = () => {
   }, [doSignIn]);
 
   const importIdentity = useCallback(() => {
-    const raw = window.prompt('Paste your secret key (nsec…):');
+    const raw = window.prompt('Paste your account secret key:');
     if (!raw) return;
     const nsec = raw.trim();
     try {
@@ -237,7 +238,7 @@ export const App = () => {
       dispatch({ type: 'ADD_IDENTITY', identity });
       doSignIn(identity);
     } catch {
-      window.alert("That doesn't look like a valid nsec secret key.");
+      window.alert("That doesn't look like a valid account secret key.");
     }
   }, [doSignIn]);
 
@@ -302,7 +303,7 @@ export const App = () => {
         pubkey = null;
       }
     }
-    if (!pubkey) return 'Could not resolve that address. Check the npub or NIP-05.';
+    if (!pubkey) return "We couldn't find that contact. Check the address and try again.";
     if (pubkey === stateRef.current.myPubkey) return "That's your own key!";
     nostr.addContact(pubkey, petname);
     return null;
@@ -322,7 +323,7 @@ export const App = () => {
   const addRelay = useCallback((url: string) => {
     const normalised = normaliseRelay(url);
     if (!normalised) {
-      window.alert('Enter a valid relay URL, e.g. wss://relay.example.com');
+      window.alert('Enter a valid server address, e.g. wss://server.example.com');
       return;
     }
     dispatch({ type: 'ADD_RELAY', url: normalised });
@@ -399,6 +400,7 @@ export const App = () => {
             onPickStatus={setStatus}
             onEditPsm={editPsm}
             onEditName={editName}
+            onChangePicture={() => dispatch({ type: 'TOGGLE_CHANGE_PICTURE' })}
             onToggleGroup={(group) => dispatch({ type: 'TOGGLE_GROUP', group })}
             onOpenChat={(pubkey) => dispatch({ type: 'OPEN_CHAT', pubkey })}
             onRemoveContact={(pubkey) => dispatch({ type: 'REMOVE_CONTACT', pubkey })}
@@ -453,13 +455,25 @@ export const App = () => {
 
           {state.addContactOpen && <AddContact onAdd={addContact} onClose={() => dispatch({ type: 'TOGGLE_ADD_CONTACT' })} />}
 
+          {state.changePictureOpen && (
+            <ChangePicture
+              current={state.myAvatar}
+              name={state.myName || 'You'}
+              onChoose={(picture) => {
+                nostr.setAvatar(picture);
+                dispatch({ type: 'TOGGLE_CHANGE_PICTURE' });
+              }}
+              onClose={() => dispatch({ type: 'TOGGLE_CHANGE_PICTURE' })}
+            />
+          )}
+
           {state.shareOpen && state.myPubkey && (
             <ShareContact
               name={state.myName || 'You'}
               avatar={state.myAvatar}
               npub={npubOf(state.myPubkey)}
               link={inviteLinkFor(state.myPubkey)}
-              onCopyNpub={() => state.myPubkey && copy(npubOf(state.myPubkey), 'public key')}
+              onCopyNpub={() => state.myPubkey && copy(npubOf(state.myPubkey), 'contact address')}
               onCopyLink={() => state.myPubkey && copy(inviteLinkFor(state.myPubkey), 'invite link')}
               onClose={() => dispatch({ type: 'TOGGLE_SHARE' })}
             />

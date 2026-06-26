@@ -30,6 +30,18 @@ const PICTURES: Readonly<Record<string, string>> = {
 /** The default display picture used when a contact has no avatar key set. */
 export const DEFAULT_PICTURE = 'msn';
 
+const DEFAULT_SRC = PICTURES[DEFAULT_PICTURE] ?? msn;
+
+/**
+ * Resolve an avatar value to an <img> src. Accepts a bundled key (`beach`), a
+ * namespaced bundled key (`memesen:beach`), or a remote image URL (`https://…`).
+ */
+const srcFor = (pic: string): string => {
+  if (/^https?:\/\//.test(pic)) return pic;
+  const key = pic.startsWith('memesen:') ? pic.slice('memesen:'.length) : pic;
+  return PICTURES[key] ?? DEFAULT_SRC;
+};
+
 const FRAME: Readonly<Record<StatusKey, readonly [string, string]>> = {
   online: [frameOnlineS, frameOnlineL],
   busy: [frameBusyS, frameBusyL],
@@ -47,7 +59,7 @@ export interface AvatarProps {
 }
 
 export const Avatar = ({ pic, size = 24, status, style }: AvatarProps): JSX.Element => {
-  const src = PICTURES[pic] ?? PICTURES[DEFAULT_PICTURE] ?? msn;
+  const src = srcFor(pic);
   const framed = status !== undefined;
   const frame = framed ? (size >= 44 ? FRAME[status][1] : FRAME[status][0]) : undefined;
   // The frame bitmap is a border with a transparent centre; inset the picture
@@ -59,6 +71,10 @@ export const Avatar = ({ pic, size = 24, status, style }: AvatarProps): JSX.Elem
         src={src}
         alt={pic}
         draggable={false}
+        // A broken remote picture quietly falls back to the default bitmap.
+        onError={(e) => {
+          if (e.currentTarget.src !== DEFAULT_SRC) e.currentTarget.src = DEFAULT_SRC;
+        }}
         style={{
           position: 'absolute',
           inset: pad,

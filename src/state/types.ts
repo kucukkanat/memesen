@@ -112,6 +112,7 @@ export interface AppState {
   readonly relayManagerOpen: boolean;
   readonly addContactOpen: boolean;
   readonly shareOpen: boolean;
+  readonly changePictureOpen: boolean;
   readonly chats: readonly Chat[];
   readonly zTop: number;
   readonly now: number;
@@ -138,6 +139,7 @@ export type Action =
   | { type: 'SET_STATUS'; status: SelectableStatus }
   | { type: 'SET_PSM'; psm: string }
   | { type: 'SET_MY_NAME'; name: string }
+  | { type: 'SET_AVATAR'; picture: string }
   // network data
   | { type: 'PROFILE_LOADED'; pubkey: string; profile: Profile }
   | { type: 'FOLLOWS_LOADED'; entries: ReadonlyArray<{ pubkey: string; petname: string }> }
@@ -155,6 +157,7 @@ export type Action =
   | { type: 'TOGGLE_RELAY_MANAGER' }
   | { type: 'TOGGLE_ADD_CONTACT' }
   | { type: 'TOGGLE_SHARE' }
+  | { type: 'TOGGLE_CHANGE_PICTURE' }
   | { type: 'OPEN_CHAT'; pubkey: string }
   | { type: 'CLOSE_CHAT'; pubkey: string }
   | { type: 'FOCUS_CHAT'; pubkey: string }
