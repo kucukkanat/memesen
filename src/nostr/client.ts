@@ -12,6 +12,7 @@ import { createRumor, createSeal, createWrap, unwrapEvent } from 'nostr-tools/ni
 
 import type { Profile, StatusKey } from '../state/types';
 import { parseProfile, serialiseProfile } from './profiles';
+import { sameRelay } from './relays';
 import { decodeWire, encodeWire, type WirePayload } from './wire';
 import { KIND_CHAT, KIND_CONTACTS, KIND_DM_LEGACY, KIND_GIFT_WRAP, KIND_METADATA, KIND_STATUS } from './kinds';
 
@@ -49,8 +50,10 @@ export class NostrClient {
     private relays: string[],
     private readonly handlers: ClientHandlers,
   ) {
-    this.pool.onRelayConnectionSuccess = (url) => this.handlers.onRelayStatus(url, 'connected');
-    this.pool.onRelayConnectionFailure = (url) => this.handlers.onRelayStatus(url, 'error');
+    // The pool reports a normalised URL; map it back to the exact URL we were
+    // configured with so the UI's per-relay status actually matches.
+    this.pool.onRelayConnectionSuccess = (url) => this.handlers.onRelayStatus(this.configured(url), 'connected');
+    this.pool.onRelayConnectionFailure = (url) => this.handlers.onRelayStatus(this.configured(url), 'error');
   }
 
   /** Open every live subscription for the active identity. */
@@ -83,6 +86,11 @@ export class NostrClient {
   /** Swap the relay set live (used by the Connection manager). */
   setRelays(relays: string[]): void {
     this.relays = relays;
+  }
+
+  /** Resolve a pool-reported (normalised) URL back to our configured spelling. */
+  private configured(reported: string): string {
+    return this.relays.find((u) => sameRelay(u, reported)) ?? reported;
   }
 
   // --- inbound -------------------------------------------------------------

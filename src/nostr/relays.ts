@@ -10,6 +10,14 @@ export const DEFAULT_RELAYS: readonly string[] = [
   'wss://relay.snort.social',
 ];
 
+/**
+ * Compare two relay URLs ignoring a trailing slash. The relay pool reports a
+ * normalised URL (with a trailing slash) in its connection callbacks, which
+ * wouldn't otherwise string-match the slash-free URLs we store.
+ */
+export const sameRelay = (a: string, b: string): boolean =>
+  a.replace(/\/+$/, '') === b.replace(/\/+$/, '');
+
 /** Normalise a user-typed relay URL, or return null if it isn't a ws(s) URL. */
 export const normaliseRelay = (input: string): string | null => {
   const raw = input.trim();

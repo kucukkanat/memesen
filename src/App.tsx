@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
-import type { Identity, SelectableStatus } from './state/types';
+import type { AppState, Identity, SelectableStatus } from './state/types';
 import { WINK_GLYPHS } from './state/data';
 import { pick } from './state/helpers';
 import { initialState, reducer } from './state/reducer';
@@ -32,9 +32,30 @@ const TOAST_TTL_MS = 6_000;
 const SHAKE_MS = 900;
 const WINK_MS = 1400;
 
+// Build the initial state synchronously from persisted storage, so a refresh
+// comes back already signed-in (no flash of the sign-in screen) and the
+// persistence effects write back the same data instead of clobbering it.
+const bootState = (): AppState => {
+  const base = initialState(Date.now());
+  const identities = loadIdentities();
+  const relays = loadRelays().map((r) => ({ ...r, status: 'connecting' as const }));
+  const active = loadActive();
+  const me = active ? identities.find((i) => i.pubkey === active) : undefined;
+  if (!me) return { ...base, identities, relays };
+  return {
+    ...base,
+    identities,
+    relays,
+    screen: 'desktop',
+    myPubkey: me.pubkey,
+    myName: me.name || shortNpub(me.pubkey),
+    myAvatar: avatarFor(me.pubkey),
+  };
+};
+
 export const App = () => {
   // `Date.now()` is the one impurity at the edge; the reducer never calls it.
-  const [state, dispatch] = useReducer(reducer, Date.now(), initialState);
+  const [state, dispatch] = useReducer(reducer, null, bootState);
   const drag = useDrag();
   const resize = useResize();
 
@@ -122,16 +143,6 @@ export const App = () => {
     playSound('signin');
     dispatch({ type: 'SIGN_IN', pubkey: identity.pubkey, name: identity.name || shortNpub(identity.pubkey), avatar: avatarFor(identity.pubkey) });
   }, []);
-
-  // Boot: hydrate persisted identities/relays, then auto sign-in the last account.
-  useEffect(() => {
-    const identities = loadIdentities();
-    const relays = loadRelays();
-    dispatch({ type: 'HYDRATE', identities, relays });
-    const active = loadActive();
-    const last = active ? identities.find((i) => i.pubkey === active) : undefined;
-    if (last) doSignIn(last);
-  }, [doSignIn]);
 
   // Pick up an `?add=<npub>` invite link on load.
   useEffect(() => {

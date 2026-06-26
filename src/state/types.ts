@@ -128,7 +128,6 @@ export type Group = 'online' | 'offline';
 
 export type Action =
   // boot + identity
-  | { type: 'HYDRATE'; identities: readonly Identity[]; relays: readonly StoredRelay[] }
   | { type: 'ADD_IDENTITY'; identity: Identity }
   | { type: 'REMOVE_IDENTITY'; pubkey: string }
   | { type: 'SET_SIGNIN_STATUS'; status: SelectableStatus }

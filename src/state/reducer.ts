@@ -114,12 +114,6 @@ const applyMessage = (state: AppState, args: ApplyArgs): AppState => {
 
 export const reducer = (state: AppState, action: Action): AppState => {
   switch (action.type) {
-    case 'HYDRATE':
-      return {
-        ...state,
-        identities: action.identities,
-        relays: action.relays.map((r) => ({ ...r, status: 'connecting' as const })),
-      };
     case 'ADD_IDENTITY':
       return { ...state, identities: [...state.identities.filter((i) => i.pubkey !== action.identity.pubkey), action.identity] };
     case 'REMOVE_IDENTITY':

@@ -29,16 +29,6 @@ describe('reducer — purity', () => {
 });
 
 describe('reducer — identity', () => {
-  it('hydrates identities and relays from storage, marking relays connecting', () => {
-    const s = reducer(base(), {
-      type: 'HYDRATE',
-      identities: [{ pubkey: ALICE, nsec: 'nsec1x', name: 'al' }],
-      relays: [{ url: 'wss://r.example', enabled: false }],
-    });
-    expect(s.identities).toHaveLength(1);
-    expect(s.relays).toEqual([{ url: 'wss://r.example', enabled: false, status: 'connecting' }]);
-  });
-
   it('upserts identities by pubkey rather than duplicating', () => {
     const s = run(base(),
       { type: 'ADD_IDENTITY', identity: { pubkey: ALICE, nsec: 'n1', name: 'a' } },
