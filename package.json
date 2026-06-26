@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "MSN Messenger nostalgia — a faithful early-2000s instant-messenger clone in React + Bun.",
+  "description": "MSN Messenger over Nostr — a faithful early-2000s instant-messenger UI on real encrypted Nostr DMs, identities and relays (React + Bun).",
   "scripts": {
     "dev": "bun --hot ./src/index.html",
     "build": "bun build ./src/index.html --outdir dist --minify",
@@ -13,6 +13,7 @@
     "test:e2e": "echo 'No E2E suite yet — add Playwright here, kept separate from unit/integration on purpose.' && exit 1"
   },
   "dependencies": {
+    "nostr-tools": "^2.23.8",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

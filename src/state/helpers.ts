@@ -19,9 +19,6 @@ export const formatTime = (now: number): string => {
   return `(${h}:${m} ${ap})`;
 };
 
-/** Derive a screen name from an e-mail address; falls back to `Me`. */
-export const nameFromEmail = (email: string): string => (email.split('@')[0] ?? '').trim() || 'Me';
-
 export const clamp = (value: number, min: number, max: number): number =>
   Math.max(min, Math.min(value, max));
 

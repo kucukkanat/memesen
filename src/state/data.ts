@@ -1,12 +1,12 @@
-// Static seed data + brand glyphs. Period-accurate buddy list circa 2004.
+// Static labels + small constant tables. The buddy list, profiles and presence
+// are no longer seeded here — they come live from Nostr relays at runtime.
 
-import type { Contact, StatusInfo, StatusKey } from './types';
+import type { StatusInfo, StatusKey } from './types';
 
-// Avatar values are keys into the real display-picture set in `assets/avatars`.
+/** The default display picture key when nothing else is known. */
 export const DEFAULT_AVATAR = 'msn';
-export const MY_AVATAR = 'beach';
 
-// Presence labels. The coloured indicator itself is drawn by <StatusIcon/>.
+/** Presence labels. The coloured indicator itself is drawn by <StatusIcon/>. */
 export const STATUS: Readonly<Record<StatusKey, StatusInfo>> = {
   online: { label: 'Online' },
   busy: { label: 'Busy' },
@@ -17,23 +17,7 @@ export const STATUS: Readonly<Record<StatusKey, StatusInfo>> = {
 
 export const statusOf = (key: StatusKey): StatusInfo => STATUS[key];
 
-export const CONTACTS: readonly Contact[] = [
-  { id: 'sarah', name: '✗ Sarah ✗', email: 'sazzlexo@hotmail.com', status: 'online', psm: '~*~ skool sux ~*~ (A)', avatar: 'flower' },
-  { id: 'mike', name: 'Mike (at work, msg me)', email: 'mike_t@hotmail.com', status: 'busy', psm: 'crunch time :@', avatar: 'moto' },
-  { id: 'jess', name: 'jess :) brb dinner', email: 'jessrox123@hotmail.com', status: 'away', psm: 'brb!! (L)', avatar: 'duck' },
-  { id: 'dan', name: '~DJ Dan~ (8)', email: 'danthedj@hotmail.com', status: 'online', psm: 'new mixtape out now (8)', avatar: 'rocket' },
-  { id: 'mum', name: 'Mum', email: 'family_pc@hotmail.com', status: 'online', psm: '', avatar: 'chess' },
-  { id: 'tom', name: 'Tom_92', email: 'tom92@hotmail.com', status: 'offline', psm: '', avatar: 'soccer' },
-  { id: 'becca', name: 'becca xoxo', email: 'beccaboo@hotmail.com', status: 'offline', psm: '', avatar: 'horses' },
-];
-
-// Auto-replies sprinkle in emoticon shortcut codes (`:)`, `(L)`...) which the
-// chat transcript renders as inline SVG emoticons, just like the real client.
-export const AUTO_REPLIES: readonly string[] = [
-  'lol omg :D', 'no wayyy :O', 'hahaha :P', 'brb', 'wat u up 2? :)', 'omg same!! :D',
-  'soooo bored rn :(', 'did u do the homework?? :S', 'ttyl (L)', 'rofl :D', 'k :|',
-  'g2g in a sec', 'check ur email i sent u smth', 'r u going 2 the party fri? (Y)',
-  ':P:P:P', 'awwww (L)', 'nudge me back! ;)', 'thats so cool (H)', 'miss u (U)',
-];
+/** A contact is treated as offline once their presence is older than this. */
+export const PRESENCE_TTL_MS = 15 * 60_000;
 
 export const WINK_GLYPHS: readonly string[] = ['😉', '😍', '🎉', '💋', '🤪', '😂'];

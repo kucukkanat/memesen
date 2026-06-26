@@ -1,16 +1,24 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
-import type { Contact, SelectableStatus } from './state/types';
-import { AUTO_REPLIES, CONTACTS, WINK_GLYPHS } from './state/data';
-import { formatTime, pick } from './state/helpers';
+import type { Identity, SelectableStatus } from './state/types';
+import { WINK_GLYPHS } from './state/data';
+import { pick } from './state/helpers';
 import { initialState, reducer } from './state/reducer';
+import { resolveContact } from './state/view';
 import { playSound, resumeAudio, setMuted } from './audio/sounds';
 import { useDrag } from './hooks/useDrag';
 import { useResize } from './hooks/useResize';
+import { useNostr, type NostrSink } from './hooks/useNostr';
+import { loadActive, loadIdentities, loadRelays } from './nostr/identity';
+import { normaliseRelay } from './nostr/relays';
+import { avatarFor, createKeyPair, pubkeyFromInput, pubkeyFromNsec, shortNpub } from './nostr/keys';
+import { isNip05, queryProfile } from 'nostr-tools/nip05';
 import { Taskbar } from './components/Taskbar';
 import { SignIn } from './components/SignIn';
 import { BuddyList } from './components/BuddyList';
 import { ChatWindow } from './components/ChatWindow';
+import { RelayManager } from './components/RelayManager';
+import { AddContact } from './components/AddContact';
 import { ToastStack } from './components/Toasts';
 import type { Toast } from './components/Toasts';
 
@@ -18,8 +26,8 @@ const CLOCK_INTERVAL_MS = 20_000;
 const AUTO_AWAY_MS = 5 * 60_000; // MSN flipped you to Away after ~5 min idle.
 const NUDGE_COOLDOWN_MS = 6_000; // "You may not send a Nudge that often."
 const TOAST_TTL_MS = 6_000;
-const replyDelay = (): number => 900 + Math.random() * 1600;
-const nudgeBackDelay = (): number => 1400 + Math.random() * 1000;
+const SHAKE_MS = 900;
+const WINK_MS = 1400;
 
 export const App = () => {
   // `Date.now()` is the one impurity at the edge; the reducer never calls it.
@@ -27,7 +35,7 @@ export const App = () => {
   const drag = useDrag();
   const resize = useResize();
 
-  // Latest-state ref so deferred timers (replies, nudges) read current chats.
+  // Latest-state ref so deferred timers and network callbacks read current state.
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -50,6 +58,52 @@ export const App = () => {
     });
   }, []);
 
+  // UX side-effects for inbound relay events (sounds, toasts, effect timers).
+  const sink: NostrSink = useMemo(
+    () => ({
+      onIncoming: (partner, message) => {
+        const c = resolveContact(stateRef.current, partner);
+        const toastStatus = c.status === 'offline' ? 'online' : c.status;
+        if (message.payload.kind === 'nudge') {
+          playSound('nudge');
+          pushToast({ title: c.name, body: 'sent you a Nudge.', status: toastStatus, avatar: c.avatar });
+          setTimeout(() => dispatch({ type: 'SET_SHAKE', pubkey: partner, shake: false }), SHAKE_MS);
+        } else if (message.payload.kind === 'wink') {
+          playSound('alert');
+          pushToast({ title: c.name, body: 'sent you a Wink.', status: toastStatus, avatar: c.avatar });
+          setTimeout(() => dispatch({ type: 'SET_WINK', pubkey: partner, on: false }), WINK_MS);
+        } else {
+          playSound('message');
+          pushToast({ title: c.name, body: 'sent you a message.', status: toastStatus, avatar: c.avatar });
+        }
+      },
+      onContactOnline: (pubkey) => {
+        const c = resolveContact(stateRef.current, pubkey);
+        playSound('online');
+        pushToast({ title: c.name, body: 'has just signed in.', status: c.status === 'offline' ? 'online' : c.status, avatar: c.avatar });
+      },
+    }),
+    [pushToast],
+  );
+
+  const nostr = useNostr(state, dispatch, sink);
+
+  const doSignIn = useCallback((identity: Identity) => {
+    resumeAudio();
+    playSound('signin');
+    dispatch({ type: 'SIGN_IN', pubkey: identity.pubkey, name: identity.name || shortNpub(identity.pubkey), avatar: avatarFor(identity.pubkey) });
+  }, []);
+
+  // Boot: hydrate persisted identities/relays, then auto sign-in the last account.
+  useEffect(() => {
+    const identities = loadIdentities();
+    const relays = loadRelays();
+    dispatch({ type: 'HYDRATE', identities, relays });
+    const active = loadActive();
+    const last = active ? identities.find((i) => i.pubkey === active) : undefined;
+    if (last) doSignIn(last);
+  }, [doSignIn]);
+
   useEffect(() => {
     const id = setInterval(() => dispatch({ type: 'TICK', now: Date.now() }), CLOCK_INTERVAL_MS);
     return () => clearInterval(id);
@@ -68,14 +122,14 @@ export const App = () => {
         if (cur === 'online' || cur === 'busy') {
           beforeAway.current = cur;
           autoAway.current = true;
-          dispatch({ type: 'SET_STATUS', status: 'away' });
+          nostr.setStatus('away');
         }
       }, AUTO_AWAY_MS);
     };
     const onActivity = (): void => {
       if (autoAway.current) {
         autoAway.current = false;
-        dispatch({ type: 'SET_STATUS', status: beforeAway.current });
+        nostr.setStatus(beforeAway.current);
       }
       arm();
     };
@@ -89,7 +143,7 @@ export const App = () => {
       window.removeEventListener('mousedown', onActivity);
       window.removeEventListener('keydown', onActivity);
     };
-  }, [state.screen]);
+  }, [state.screen, nostr]);
 
   // Flash the browser tab title while any conversation has an unread message.
   useEffect(() => {
@@ -98,10 +152,11 @@ export const App = () => {
       document.title = 'MSN Messenger';
       return;
     }
+    const name = resolveContact(stateRef.current, flashing.pubkey).name;
     let on = false;
     const id = setInterval(() => {
       on = !on;
-      document.title = on ? `${flashing.name} says...` : 'MSN Messenger';
+      document.title = on ? `${name} says...` : 'MSN Messenger';
     }, 600);
     return () => {
       clearInterval(id);
@@ -109,93 +164,122 @@ export const App = () => {
     };
   }, [state.chats]);
 
-  const signIn = useCallback(() => {
-    resumeAudio();
-    playSound('signin');
-    dispatch({ type: 'SIGN_IN' });
-    // After connecting, your online contacts "sign in" with toasts + the chime.
-    CONTACTS.filter((c) => c.status !== 'offline').forEach((c, i) => {
-      setTimeout(() => {
-        playSound('online');
-        pushToast({ title: c.name, body: 'has just signed in.', status: c.status, avatar: c.avatar });
-      }, 1800 + i * 1400);
-    });
-  }, [pushToast]);
+  // --- identity actions ----------------------------------------------------
 
-  const scheduleReply = useCallback((id: string) => {
-    const chat = stateRef.current.chats.find((c) => c.id === id);
-    if (!chat || chat.status === 'offline') return;
-    dispatch({ type: 'SET_TYPING', id, typing: true });
-    setTimeout(() => {
-      const cur = stateRef.current.chats.find((c) => c.id === id);
-      if (!cur) return;
-      dispatch({ type: 'SET_TYPING', id, typing: false });
-      dispatch({
-        type: 'APPEND_MESSAGE',
-        id,
-        message: { kind: 'chat', sender: cur.name, body: pick(AUTO_REPLIES), time: formatTime(Date.now()), mine: false },
-      });
-      playSound('message');
-      // Flash the taskbar button unless this is the focused (top-most) window.
-      if (cur.z !== stateRef.current.zTop) dispatch({ type: 'SET_FLASH', id, on: true });
-      pushToast({ title: cur.name, body: 'sent you a message.', status: cur.status, avatar: cur.avatar });
-    }, replyDelay());
-  }, [pushToast]);
+  const signInPubkey = useCallback((pubkey: string) => {
+    const id = stateRef.current.identities.find((i) => i.pubkey === pubkey);
+    if (id) doSignIn(id);
+  }, [doSignIn]);
 
-  const handleSend = useCallback((id: string) => {
-    const chat = stateRef.current.chats.find((c) => c.id === id);
-    const raw = chat?.draft.trim() ?? '';
-    if (!chat || !raw) return;
-    dispatch({ type: 'SEND_MESSAGE', id, body: raw, time: formatTime(Date.now()) });
-    playSound('send');
-    scheduleReply(id);
-  }, [scheduleReply]);
+  const createIdentity = useCallback(() => {
+    const kp = createKeyPair();
+    const identity: Identity = { pubkey: kp.pubkey, nsec: kp.nsec, name: '' };
+    dispatch({ type: 'ADD_IDENTITY', identity });
+    doSignIn(identity);
+  }, [doSignIn]);
 
-  const handleNudge = useCallback((id: string) => {
-    const chat = stateRef.current.chats.find((c) => c.id === id);
-    if (!chat) return;
-    const last = nudgeAt.current[id] ?? 0;
-    if (Date.now() - last < NUDGE_COOLDOWN_MS) {
-      dispatch({ type: 'APPEND_MESSAGE', id, message: { kind: 'system', text: 'You may not send a Nudge that often.' } });
-      return;
+  const importIdentity = useCallback(() => {
+    const raw = window.prompt('Paste your secret key (nsec…):');
+    if (!raw) return;
+    const nsec = raw.trim();
+    try {
+      const pubkey = pubkeyFromNsec(nsec);
+      const identity: Identity = { pubkey, nsec, name: '' };
+      dispatch({ type: 'ADD_IDENTITY', identity });
+      doSignIn(identity);
+    } catch {
+      window.alert("That doesn't look like a valid nsec secret key.");
     }
-    nudgeAt.current[id] = Date.now();
-    dispatch({ type: 'APPEND_MESSAGE', id, message: { kind: 'system', text: 'You have just sent a Nudge.' } });
-    dispatch({ type: 'SET_SHAKE', id, shake: true });
-    playSound('nudge');
-    setTimeout(() => dispatch({ type: 'SET_SHAKE', id, shake: false }), 900);
-    if (chat.status === 'offline') return;
-    setTimeout(() => {
-      dispatch({ type: 'APPEND_MESSAGE', id, message: { kind: 'system', text: `${chat.name} has just sent you a Nudge.` } });
-      dispatch({ type: 'SET_SHAKE', id, shake: true });
-      playSound('nudge');
-      setTimeout(() => dispatch({ type: 'SET_SHAKE', id, shake: false }), 900);
-    }, nudgeBackDelay());
-  }, []);
+  }, [doSignIn]);
 
-  const handleWink = useCallback((id: string) => {
-    dispatch({ type: 'SET_WINK', id, on: true, glyph: pick(WINK_GLYPHS) });
-    dispatch({ type: 'APPEND_MESSAGE', id, message: { kind: 'system', text: 'You have sent a Wink.' } });
-    playSound('alert');
-    setTimeout(() => dispatch({ type: 'SET_WINK', id, on: false }), 1400);
-  }, []);
-
-  const pickEmoji = useCallback((id: string, code: string) => {
-    const chat = stateRef.current.chats.find((c) => c.id === id);
-    if (!chat) return;
-    dispatch({ type: 'SET_DRAFT', id, draft: chat.draft + code });
-    dispatch({ type: 'TOGGLE_EMOJI', id });
+  const signOut = useCallback(() => {
+    playSound('offline');
+    dispatch({ type: 'SIGN_OUT' });
   }, []);
 
   const editPsm = useCallback(() => {
     const next = window.prompt('Personal message:', stateRef.current.myPsm);
-    if (next !== null) dispatch({ type: 'SET_PSM', psm: next });
+    if (next !== null) nostr.setPsm(next);
+  }, [nostr]);
+
+  const editName = useCallback(() => {
+    const next = window.prompt('Display name:', stateRef.current.myName);
+    if (next) nostr.setName(next.trim());
+  }, [nostr]);
+
+  // --- messaging actions ---------------------------------------------------
+
+  const handleSend = useCallback((pubkey: string) => {
+    const chat = stateRef.current.chats.find((c) => c.pubkey === pubkey);
+    const raw = chat?.draft.trim() ?? '';
+    if (!chat || !raw) return;
+    nostr.sendText(pubkey, raw);
+    playSound('send');
+  }, [nostr]);
+
+  const handleNudge = useCallback((pubkey: string) => {
+    const last = nudgeAt.current[pubkey] ?? 0;
+    if (Date.now() - last < NUDGE_COOLDOWN_MS) {
+      dispatch({ type: 'APPEND_SYSTEM', pubkey, text: 'You may not send a Nudge that often.' });
+      return;
+    }
+    nudgeAt.current[pubkey] = Date.now();
+    nostr.sendNudge(pubkey);
+    playSound('nudge');
+    setTimeout(() => dispatch({ type: 'SET_SHAKE', pubkey, shake: false }), SHAKE_MS);
+  }, [nostr]);
+
+  const handleWink = useCallback((pubkey: string) => {
+    nostr.sendWink(pubkey, pick(WINK_GLYPHS));
+    playSound('alert');
+    setTimeout(() => dispatch({ type: 'SET_WINK', pubkey, on: false }), WINK_MS);
+  }, [nostr]);
+
+  const pickEmoji = useCallback((pubkey: string, code: string) => {
+    const chat = stateRef.current.chats.find((c) => c.pubkey === pubkey);
+    if (!chat) return;
+    dispatch({ type: 'SET_DRAFT', pubkey, draft: chat.draft + code });
+    dispatch({ type: 'TOGGLE_EMOJI', pubkey });
+  }, []);
+
+  // --- contacts & relays ---------------------------------------------------
+
+  const addContact = useCallback(async (input: string, petname: string): Promise<string | null> => {
+    let pubkey = pubkeyFromInput(input);
+    if (!pubkey && isNip05(input)) {
+      try {
+        pubkey = (await queryProfile(input))?.pubkey ?? null;
+      } catch {
+        pubkey = null;
+      }
+    }
+    if (!pubkey) return 'Could not resolve that address. Check the npub or NIP-05.';
+    if (pubkey === stateRef.current.myPubkey) return "That's your own key!";
+    nostr.addContact(pubkey, petname);
+    return null;
+  }, [nostr]);
+
+  const addRelay = useCallback((url: string) => {
+    const normalised = normaliseRelay(url);
+    if (!normalised) {
+      window.alert('Enter a valid relay URL, e.g. wss://relay.example.com');
+      return;
+    }
+    dispatch({ type: 'ADD_RELAY', url: normalised });
   }, []);
 
   const setStatus = useCallback((status: SelectableStatus) => {
     autoAway.current = false;
-    dispatch({ type: 'SET_STATUS', status });
-  }, []);
+    nostr.setStatus(status);
+  }, [nostr]);
+
+  // --- render --------------------------------------------------------------
+
+  const contacts = useMemo(() => state.follows.map((p) => resolveContact(state, p)), [state]);
+  const relaySummary = {
+    connected: state.relays.filter((r) => r.status === 'connected').length,
+    total: state.relays.length,
+  };
 
   return (
     <div
@@ -215,28 +299,31 @@ export const App = () => {
         windows={
           state.screen === 'desktop'
             ? [
-                { id: '__buddy__', label: `${state.myName} - Messenger`, status: state.myStatus, flashing: false },
-                ...state.chats.map((c) => ({ id: c.id, label: c.name, status: c.status, flashing: c.flashing })),
+                { id: '__buddy__', label: `${state.myName || 'You'} - Messenger`, status: state.myStatus, flashing: false },
+                ...state.chats.map((c) => {
+                  const r = resolveContact(state, c.pubkey);
+                  return { id: c.pubkey, label: r.name, status: r.status, flashing: c.flashing };
+                }),
               ]
             : []
         }
         onFocusWindow={(id) => {
-          if (id !== '__buddy__') dispatch({ type: 'FOCUS_CHAT', id });
+          if (id !== '__buddy__') dispatch({ type: 'FOCUS_CHAT', pubkey: id });
         }}
       />
 
       {state.screen === 'signin' && (
         <SignIn
-          email={state.email}
-          password={state.password}
+          identities={state.identities}
           status={state.signinStatus}
           top={state.signinTop}
           left={state.signinLeft}
           onDrag={(e: ReactMouseEvent) => drag(e, ({ top, left }) => dispatch({ type: 'MOVE_SIGNIN', top, left }))}
-          onEmail={(email) => dispatch({ type: 'SET_EMAIL', email })}
-          onPassword={(password) => dispatch({ type: 'SET_PASSWORD', password })}
           onStatus={(status: SelectableStatus) => dispatch({ type: 'SET_SIGNIN_STATUS', status })}
-          onSubmit={signIn}
+          onSignIn={signInPubkey}
+          onCreate={createIdentity}
+          onImport={importIdentity}
+          onRemove={(pubkey) => dispatch({ type: 'REMOVE_IDENTITY', pubkey })}
         />
       )}
 
@@ -244,46 +331,66 @@ export const App = () => {
         <>
           <BuddyList
             state={state}
+            contacts={contacts}
+            relaySummary={relaySummary}
             onDrag={(e: ReactMouseEvent) => drag(e, ({ top, left }) => dispatch({ type: 'MOVE_BUDDY', top, left }))}
-            onSignOut={() => dispatch({ type: 'SIGN_OUT' })}
+            onSignOut={signOut}
             onToggleStatusPicker={() => dispatch({ type: 'TOGGLE_STATUS_PICKER' })}
             onPickStatus={setStatus}
             onEditPsm={editPsm}
+            onEditName={editName}
             onToggleGroup={(group) => dispatch({ type: 'TOGGLE_GROUP', group })}
-            onOpenChat={(contact: Contact) => dispatch({ type: 'OPEN_CHAT', contact })}
+            onOpenChat={(pubkey) => dispatch({ type: 'OPEN_CHAT', pubkey })}
+            onRemoveContact={(pubkey) => dispatch({ type: 'REMOVE_CONTACT', pubkey })}
+            onAddContact={() => dispatch({ type: 'TOGGLE_ADD_CONTACT' })}
+            onOpenRelays={() => dispatch({ type: 'TOGGLE_RELAY_MANAGER' })}
           />
+
           {state.chats.map((chat) => (
             <ChatWindow
-              key={chat.id}
+              key={chat.pubkey}
               chat={chat}
+              contact={resolveContact(state, chat.pubkey)}
               myAvatar={state.myAvatar}
-              myName={state.myName}
+              myName={state.myName || 'You'}
               onTitleDrag={(e) => {
-                dispatch({ type: 'FOCUS_CHAT', id: chat.id });
-                drag(e, ({ top, left }) => dispatch({ type: 'MOVE_CHAT', id: chat.id, top, left }));
+                dispatch({ type: 'FOCUS_CHAT', pubkey: chat.pubkey });
+                drag(e, ({ top, left }) => dispatch({ type: 'MOVE_CHAT', pubkey: chat.pubkey, top, left }));
               }}
-              onFocus={() => dispatch({ type: 'FOCUS_CHAT', id: chat.id })}
+              onFocus={() => dispatch({ type: 'FOCUS_CHAT', pubkey: chat.pubkey })}
               onResize={(e) => {
-                dispatch({ type: 'FOCUS_CHAT', id: chat.id });
+                dispatch({ type: 'FOCUS_CHAT', pubkey: chat.pubkey });
                 resize(e, { width: 336, height: 360 }, ({ width, height }) =>
-                  dispatch({ type: 'RESIZE_CHAT', id: chat.id, width, height }),
+                  dispatch({ type: 'RESIZE_CHAT', pubkey: chat.pubkey, width, height }),
                 );
               }}
-              onClose={() => dispatch({ type: 'CLOSE_CHAT', id: chat.id })}
-              onDraft={(draft) => dispatch({ type: 'SET_DRAFT', id: chat.id, draft })}
+              onClose={() => dispatch({ type: 'CLOSE_CHAT', pubkey: chat.pubkey })}
+              onDraft={(draft) => dispatch({ type: 'SET_DRAFT', pubkey: chat.pubkey, draft })}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
-                  handleSend(chat.id);
+                  handleSend(chat.pubkey);
                 }
               }}
-              onSend={() => handleSend(chat.id)}
-              onNudge={() => handleNudge(chat.id)}
-              onWink={() => handleWink(chat.id)}
-              onToggleEmoji={() => dispatch({ type: 'TOGGLE_EMOJI', id: chat.id })}
-              onPickEmoji={(code) => pickEmoji(chat.id, code)}
+              onSend={() => handleSend(chat.pubkey)}
+              onNudge={() => handleNudge(chat.pubkey)}
+              onWink={() => handleWink(chat.pubkey)}
+              onToggleEmoji={() => dispatch({ type: 'TOGGLE_EMOJI', pubkey: chat.pubkey })}
+              onPickEmoji={(code) => pickEmoji(chat.pubkey, code)}
             />
           ))}
+
+          {state.relayManagerOpen && (
+            <RelayManager
+              relays={state.relays}
+              onAdd={addRelay}
+              onRemove={(url) => dispatch({ type: 'REMOVE_RELAY', url })}
+              onToggle={(url) => dispatch({ type: 'TOGGLE_RELAY', url })}
+              onClose={() => dispatch({ type: 'TOGGLE_RELAY_MANAGER' })}
+            />
+          )}
+
+          {state.addContactOpen && <AddContact onAdd={addContact} onClose={() => dispatch({ type: 'TOGGLE_ADD_CONTACT' })} />}
         </>
       )}
 

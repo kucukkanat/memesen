@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react';
 import type { Chat } from '../state/types';
+import type { ResolvedContact } from '../state/view';
 import { statusOf } from '../state/data';
 import { CLOSE_BTN, MENU_BAR, SIDE_BORDERS, TITLE_BAR, TITLE_TEXT, GREEN_BTN } from '../ui/chrome';
 import type { StatusKey } from '../state/types';
@@ -33,6 +34,7 @@ const ICON_BTN: CSSProperties = { ...TOOL_BTN, padding: '3px 6px', color: '#3347
 
 export interface ChatWindowProps {
   readonly chat: Chat;
+  readonly contact: ResolvedContact;
   readonly myAvatar: string;
   readonly myName: string;
   readonly onTitleDrag: (e: ReactMouseEvent) => void;
@@ -60,8 +62,8 @@ const DisplayPicture = ({ pic, status, label }: { pic: string; status: StatusKey
 const TBAR_ICON: CSSProperties = { width: 16, height: 16, verticalAlign: 'middle' };
 
 export const ChatWindow = (p: ChatWindowProps) => {
-  const { chat } = p;
-  const info = statusOf(chat.status);
+  const { chat, contact } = p;
+  const info = statusOf(contact.status);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -96,7 +98,7 @@ export const ChatWindow = (p: ChatWindowProps) => {
       {/* title bar */}
       <div onMouseDown={p.onTitleDrag} style={{ ...TITLE_BAR, flexShrink: 0, cursor: 'move' }}>
         <span style={{ marginRight: 5, display: 'flex' }}><Butterfly size={15} /></span>
-        <span style={TITLE_TEXT}><RichText text={chat.name} size={15} /> - Conversation</span>
+        <span style={TITLE_TEXT}><RichText text={contact.name} size={15} /> - Conversation</span>
         <div onClick={p.onClose} style={{ ...CLOSE_BTN, width: 19, height: 17, fontSize: 10 }}>✕</div>
       </div>
 
@@ -123,12 +125,12 @@ export const ChatWindow = (p: ChatWindowProps) => {
         }}
       >
         <div style={{ position: 'relative', flexShrink: 0, width: 24, height: 24 }}>
-          <Avatar pic={chat.avatar} size={24} />
-          <span style={{ position: 'absolute', bottom: -3, right: -3 }}><StatusIcon status={chat.status} size={11} /></span>
+          <Avatar pic={contact.avatar} size={24} />
+          <span style={{ position: 'absolute', bottom: -3, right: -3 }}><StatusIcon status={contact.status} size={11} /></span>
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ color: '#0a3a8c', fontWeight: 'bold' }}>
-            To: <RichText text={chat.name} size={14} /> <span style={{ color: '#5a7398', fontWeight: 'normal' }}>&lt;{chat.email}&gt;</span>
+            To: <RichText text={contact.name} size={14} /> <span style={{ color: '#5a7398', fontWeight: 'normal' }}>&lt;{contact.handle}&gt;</span>
           </div>
           <div style={{ color: '#7a8aa0', fontSize: 10 }}>{info.label}</div>
         </div>
@@ -175,7 +177,7 @@ export const ChatWindow = (p: ChatWindowProps) => {
             ) : (
               <div key={i} style={{ marginBottom: 7 }}>
                 <div style={{ color: m.mine ? '#1a5fc8' : '#c8401a', fontWeight: 'bold', fontSize: 10 }}>
-                  <RichText text={m.sender} size={13} /> <span style={{ color: '#aaa', fontWeight: 'normal' }}>{m.time}</span>
+                  <RichText text={m.mine ? p.myName : contact.name} size={13} /> <span style={{ color: '#aaa', fontWeight: 'normal' }}>{m.time}</span>
                 </div>
                 <div style={{ color: '#222', paddingLeft: 8, wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>
                   <RichText text={m.body} size={18} />
@@ -197,14 +199,14 @@ export const ChatWindow = (p: ChatWindowProps) => {
             padding: '9px 0',
           }}
         >
-          <DisplayPicture pic={chat.avatar} status={chat.status} label={chat.name} />
+          <DisplayPicture pic={contact.avatar} status={contact.status} label={contact.name} />
           <DisplayPicture pic={p.myAvatar} status="online" label={p.myName} />
         </div>
       </div>
 
       {/* typing indicator */}
       <div style={{ ...SIDE_BORDERS, flexShrink: 0, background: '#fbfcfe', padding: '1px 10px', height: 15, color: '#888', fontSize: 10, fontStyle: 'italic' }}>
-        {chat.typing ? `${chat.name} is writing a message...` : ''}
+        {chat.typing ? `${contact.name} is writing a message...` : ''}
       </div>
 
       {/* emoticon palette */}
@@ -257,7 +259,7 @@ export const ChatWindow = (p: ChatWindowProps) => {
 
       {/* footer */}
       <div style={{ position: 'relative', flexShrink: 0, background: 'linear-gradient(180deg,#f4f8fd,#dde8f5)', border: '1px solid #06387c', borderTop: 'none', borderRadius: '0 0 4px 4px', padding: '4px 9px', color: '#7a8aa0', fontSize: 10 }}>
-        {chat.status === 'offline' ? 'This contact is offline.' : 'Last message received just now.'}
+        {contact.status === 'offline' ? 'This contact is offline. Your message will arrive when they reconnect.' : 'Encrypted with NIP-17 · end-to-end'}
         {/* resize grip */}
         <div
           onMouseDown={p.onResize}

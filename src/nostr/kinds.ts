@@ -1,0 +1,9 @@
+// Nostr event kinds this client speaks. Names mirror the NIPs so the mapping
+// from "MSN feature" to "Nostr event" stays legible at every call site.
+
+export const KIND_METADATA = 0; // NIP-01 profile (name / about / picture)
+export const KIND_CONTACTS = 3; // NIP-02 follow list — our buddy list
+export const KIND_DM_LEGACY = 4; // NIP-04 encrypted DM (received-only interop)
+export const KIND_CHAT = 14; // NIP-17 chat message (the unsigned "rumor")
+export const KIND_GIFT_WRAP = 1059; // NIP-59 gift wrap that carries a NIP-17 DM
+export const KIND_STATUS = 30315; // NIP-38 user status — our presence + PSM

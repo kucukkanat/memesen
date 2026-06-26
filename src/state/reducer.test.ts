@@ -1,191 +1,224 @@
 import { describe, expect, it } from 'bun:test';
-import type { Action, AppState, Contact } from './types';
+import type { Action, AppState, Chat } from './types';
 import { initialState, reducer } from './reducer';
-import { CONTACTS } from './data';
 
 const T0 = new Date(2004, 2, 1, 21, 7).getTime();
 const base = (): AppState => initialState(T0);
 
-/** Fold a sequence of actions for integration-style assertions. */
-const run = (start: AppState, ...actions: readonly Action[]): AppState =>
-  actions.reduce(reducer, start);
+// Valid 64-char hex pubkeys (npub-encodable) for the social-graph tests.
+const ALICE = 'a'.repeat(64);
+const BOB = 'b'.repeat(64);
+const ME = 'c'.repeat(64);
 
-const contact = (id: string): Contact => {
-  const c = CONTACTS.find((x) => x.id === id);
-  if (!c) throw new Error(`unknown contact ${id}`);
-  return c;
-};
+const run = (start: AppState, ...actions: readonly Action[]): AppState => actions.reduce(reducer, start);
+const chatOf = (s: AppState, pubkey: string): Chat | undefined => s.chats.find((c) => c.pubkey === pubkey);
+const signedIn = (): AppState => reducer(base(), { type: 'SIGN_IN', pubkey: ME, name: 'me', avatar: 'beach' });
+
+const text = (id: string, partner: string, body: string, mine = false): Action => ({
+  type: 'MESSAGE_RECEIVED', id, partner, mine, time: '(9:07 PM)', payload: { kind: 'text', body },
+});
 
 describe('reducer — purity', () => {
   it('never mutates the previous state', () => {
     const s = base();
-    const next = reducer(s, { type: 'SET_EMAIL', email: 'a@b.com' });
-    expect(s.email).toBe('');
+    const next = reducer(s, { type: 'SET_PSM', psm: 'hi' });
+    expect(s.myPsm).toBe('');
     expect(next).not.toBe(s);
-    expect(next.email).toBe('a@b.com');
+    expect(next.myPsm).toBe('hi');
   });
 });
 
-describe('reducer — sign in / out', () => {
-  it('derives the screen name from the email and carries the chosen status', () => {
+describe('reducer — identity', () => {
+  it('hydrates identities and relays from storage, marking relays connecting', () => {
+    const s = reducer(base(), {
+      type: 'HYDRATE',
+      identities: [{ pubkey: ALICE, nsec: 'nsec1x', name: 'al' }],
+      relays: [{ url: 'wss://r.example', enabled: false }],
+    });
+    expect(s.identities).toHaveLength(1);
+    expect(s.relays).toEqual([{ url: 'wss://r.example', enabled: false, status: 'connecting' }]);
+  });
+
+  it('upserts identities by pubkey rather than duplicating', () => {
     const s = run(base(),
-      { type: 'SET_EMAIL', email: 'cooldude@hotmail.com' },
-      { type: 'SET_SIGNIN_STATUS', status: 'busy' },
-      { type: 'SIGN_IN' },
+      { type: 'ADD_IDENTITY', identity: { pubkey: ALICE, nsec: 'n1', name: 'a' } },
+      { type: 'ADD_IDENTITY', identity: { pubkey: ALICE, nsec: 'n1', name: 'a renamed' } },
     );
+    expect(s.identities).toHaveLength(1);
+    expect(s.identities[0]?.name).toBe('a renamed');
+  });
+
+  it('signs in to the desktop and carries the chosen status', () => {
+    const s = reducer({ ...base(), signinStatus: 'busy' }, { type: 'SIGN_IN', pubkey: ME, name: 'me', avatar: 'beach' });
     expect(s.screen).toBe('desktop');
-    expect(s.myName).toBe('cooldude');
+    expect(s.myPubkey).toBe(ME);
     expect(s.myStatus).toBe('busy');
+    expect(s.myAvatar).toBe('beach');
   });
 
-  it('keeps "appear offline" as invisible after signing in', () => {
-    const s = run(base(),
-      { type: 'SET_EMAIL', email: 'ghost@hotmail.com' },
-      { type: 'SET_SIGNIN_STATUS', status: 'invisible' },
-      { type: 'SIGN_IN' },
-    );
-    expect(s.myStatus).toBe('invisible');
-  });
-
-  it('falls back to Me with no email', () => {
-    expect(run(base(), { type: 'SIGN_IN' }).myName).toBe('Me');
-  });
-
-  it('sign out clears chats and returns to the sign-in screen', () => {
-    const s = run(base(),
-      { type: 'SIGN_IN' },
-      { type: 'OPEN_CHAT', contact: contact('sarah') },
+  it('signs out, clearing the session graph but keeping identities', () => {
+    const s = run(signedIn(),
+      { type: 'ADD_IDENTITY', identity: { pubkey: ME, nsec: 'n', name: 'me' } },
+      { type: 'FOLLOWS_LOADED', entries: [{ pubkey: ALICE, petname: '' }] },
+      { type: 'OPEN_CHAT', pubkey: ALICE },
       { type: 'SIGN_OUT' },
     );
     expect(s.screen).toBe('signin');
+    expect(s.myPubkey).toBeNull();
     expect(s.chats).toHaveLength(0);
+    expect(s.follows).toHaveLength(0);
+    expect(s.identities).toHaveLength(1);
   });
 });
 
-describe('reducer — chats', () => {
-  it('opens a chat with a safety notice for online contacts', () => {
-    const s = reducer(base(), { type: 'OPEN_CHAT', contact: contact('sarah') });
+describe('reducer — social graph', () => {
+  it('loads follows and petnames, de-duplicating pubkeys', () => {
+    const s = reducer(signedIn(), {
+      type: 'FOLLOWS_LOADED',
+      entries: [{ pubkey: ALICE, petname: 'Ally' }, { pubkey: ALICE, petname: 'Ally' }, { pubkey: BOB, petname: '' }],
+    });
+    expect(s.follows).toEqual([ALICE, BOB]);
+    expect(s.petnames[ALICE]).toBe('Ally');
+  });
+
+  it('only keeps the newest presence for a pubkey', () => {
+    const s = run(signedIn(),
+      { type: 'PRESENCE_LOADED', pubkey: ALICE, status: 'online', at: 200 },
+      { type: 'PRESENCE_LOADED', pubkey: ALICE, status: 'away', at: 100 },
+    );
+    expect(s.presence[ALICE]).toEqual({ status: 'online', at: 200 });
+  });
+
+  it('merges profile fields and reflects my own profile into the header', () => {
+    const s = run(signedIn(),
+      { type: 'PROFILE_LOADED', pubkey: ME, profile: { name: 'Neo' } },
+      { type: 'PROFILE_LOADED', pubkey: ME, profile: { about: 'the one' } },
+    );
+    expect(s.myName).toBe('Neo');
+    expect(s.myPsm).toBe('the one');
+    expect(s.profiles[ME]).toEqual({ name: 'Neo', about: 'the one' });
+  });
+
+  it('adds and removes contacts and closes the add dialog', () => {
+    const added = run(signedIn(),
+      { type: 'TOGGLE_ADD_CONTACT' },
+      { type: 'ADD_CONTACT', pubkey: ALICE, petname: 'Ally' },
+    );
+    expect(added.follows).toEqual([ALICE]);
+    expect(added.petnames[ALICE]).toBe('Ally');
+    expect(added.addContactOpen).toBe(false);
+
+    const removed = reducer(added, { type: 'REMOVE_CONTACT', pubkey: ALICE });
+    expect(removed.follows).toHaveLength(0);
+    expect(removed.petnames[ALICE]).toBeUndefined();
+  });
+});
+
+describe('reducer — relays', () => {
+  it('adds, toggles, statuses and removes relays without duplicates', () => {
+    const s = run(base(),
+      { type: 'ADD_RELAY', url: 'wss://a' },
+      { type: 'ADD_RELAY', url: 'wss://a' },
+      { type: 'TOGGLE_RELAY', url: 'wss://a' },
+      { type: 'RELAY_STATUS', url: 'wss://a', status: 'connected' },
+    );
+    const added = s.relays.filter((r) => r.url === 'wss://a');
+    expect(added).toHaveLength(1);
+    expect(added[0]).toEqual({ url: 'wss://a', enabled: false, status: 'connected' });
+
+    const removed = reducer(s, { type: 'REMOVE_RELAY', url: 'wss://a' });
+    expect(removed.relays.some((r) => r.url === 'wss://a')).toBe(false);
+  });
+});
+
+describe('reducer — chat windows', () => {
+  it('opens a chat with the standard safety notice', () => {
+    const s = reducer(signedIn(), { type: 'OPEN_CHAT', pubkey: ALICE });
     expect(s.chats).toHaveLength(1);
-    expect(s.chats[0]?.messages[0]).toEqual({
+    expect(chatOf(s, ALICE)?.messages[0]).toEqual({
       kind: 'system',
       text: 'Never give out your password or credit card number in an instant message conversation.',
     });
   });
 
-  it('opens an offline contact with the offline notice', () => {
-    const s = reducer(base(), { type: 'OPEN_CHAT', contact: contact('tom') });
-    expect(s.chats[0]?.messages[0]).toEqual({
-      kind: 'system',
-      text: 'This person is offline. Messages will be delivered when they sign in.',
-    });
-  });
-
   it('does not duplicate a chat, just raises it to the front', () => {
-    const s = run(base(),
-      { type: 'OPEN_CHAT', contact: contact('sarah') },
-      { type: 'OPEN_CHAT', contact: contact('mike') },
-      { type: 'OPEN_CHAT', contact: contact('sarah') },
+    const s = run(signedIn(),
+      { type: 'OPEN_CHAT', pubkey: ALICE },
+      { type: 'OPEN_CHAT', pubkey: BOB },
+      { type: 'OPEN_CHAT', pubkey: ALICE },
     );
     expect(s.chats).toHaveLength(2);
-    const sarah = s.chats.find((c) => c.id === 'sarah');
-    const mike = s.chats.find((c) => c.id === 'mike');
-    expect(sarah && mike && sarah.z > mike.z).toBe(true);
+    const a = chatOf(s, ALICE);
+    const b = chatOf(s, BOB);
+    expect(a && b && a.z > b.z).toBe(true);
   });
 
-  it('focus raises a window above the others', () => {
-    const s = run(base(),
-      { type: 'OPEN_CHAT', contact: contact('sarah') },
-      { type: 'OPEN_CHAT', contact: contact('mike') },
-      { type: 'FOCUS_CHAT', id: 'sarah' },
+  it('focusing clears the flash and raises the window', () => {
+    const s = run(signedIn(),
+      { type: 'OPEN_CHAT', pubkey: ALICE },
+      { type: 'SET_FLASH', pubkey: ALICE, on: true },
+      { type: 'FOCUS_CHAT', pubkey: ALICE },
     );
-    const sarah = s.chats.find((c) => c.id === 'sarah');
-    const mike = s.chats.find((c) => c.id === 'mike');
-    expect(sarah && mike && sarah.z > mike.z).toBe(true);
-  });
-
-  it('flashes a taskbar button and clears it when the window is focused', () => {
-    const opened = run(base(), { type: 'OPEN_CHAT', contact: contact('sarah') });
-    expect(opened.chats[0]?.flashing).toBe(false);
-
-    const flashed = reducer(opened, { type: 'SET_FLASH', id: 'sarah', on: true });
-    expect(flashed.chats[0]?.flashing).toBe(true);
-
-    const focused = reducer(flashed, { type: 'FOCUS_CHAT', id: 'sarah' });
-    expect(focused.chats[0]?.flashing).toBe(false);
+    expect(chatOf(s, ALICE)?.flashing).toBe(false);
   });
 
   it('resizes only the targeted chat, leaving its position untouched', () => {
-    const s = run(base(),
-      { type: 'OPEN_CHAT', contact: contact('sarah') },
-      { type: 'RESIZE_CHAT', id: 'sarah', width: 600, height: 540 },
+    const s = run(signedIn(),
+      { type: 'OPEN_CHAT', pubkey: ALICE },
+      { type: 'RESIZE_CHAT', pubkey: ALICE, width: 600, height: 540 },
     );
-    const chat = s.chats.find((c) => c.id === 'sarah');
-    expect(chat?.width).toBe(600);
-    expect(chat?.height).toBe(540);
-    expect(chat?.top).toBe(70);
-    expect(chat?.left).toBe(60);
-  });
-
-  it('closing removes only the targeted chat', () => {
-    const s = run(base(),
-      { type: 'OPEN_CHAT', contact: contact('sarah') },
-      { type: 'OPEN_CHAT', contact: contact('mike') },
-      { type: 'CLOSE_CHAT', id: 'sarah' },
-    );
-    expect(s.chats.map((c) => c.id)).toEqual(['mike']);
-  });
-
-  it('sending appends my message and clears the draft', () => {
-    const s = run(base(),
-      { type: 'SET_EMAIL', email: 'me@hotmail.com' },
-      { type: 'SIGN_IN' },
-      { type: 'OPEN_CHAT', contact: contact('sarah') },
-      { type: 'SET_DRAFT', id: 'sarah', draft: 'hello' },
-      { type: 'SEND_MESSAGE', id: 'sarah', body: 'hello', time: '(9:07 PM)' },
-    );
-    const chat = s.chats.find((c) => c.id === 'sarah');
-    expect(chat?.draft).toBe('');
-    expect(chat?.messages.at(-1)).toEqual({ kind: 'chat', sender: 'me', body: 'hello', time: '(9:07 PM)', mine: true });
+    const c = chatOf(s, ALICE);
+    expect([c?.width, c?.height, c?.top, c?.left]).toEqual([600, 540, 70, 60]);
   });
 });
 
-describe('reducer — status, groups, and movement', () => {
-  it('picking a status closes the picker', () => {
-    const s = run(base(),
-      { type: 'TOGGLE_STATUS_PICKER' },
-      { type: 'SET_STATUS', status: 'away' },
+describe('reducer — messaging', () => {
+  it('an inbound message opens a chat in the foreground (no flash)', () => {
+    const s = reducer(signedIn(), text('e1', ALICE, 'hello :)'));
+    const c = chatOf(s, ALICE);
+    expect(c?.flashing).toBe(false);
+    expect(c?.messages.at(-1)).toEqual({ kind: 'chat', id: 'e1', mine: false, body: 'hello :)', time: '(9:07 PM)' });
+  });
+
+  it('flashes a background window when a message arrives for it', () => {
+    const s = run(signedIn(),
+      { type: 'OPEN_CHAT', pubkey: ALICE }, // alice in foreground
+      { type: 'OPEN_CHAT', pubkey: BOB }, // bob now in front, alice is behind
+      text('e1', ALICE, 'oi'),
     );
-    expect(s.myStatus).toBe('away');
-    expect(s.statusPickerOpen).toBe(false);
+    expect(chatOf(s, ALICE)?.flashing).toBe(true);
   });
 
-  it('toggles contact groups independently', () => {
-    const s = run(base(), { type: 'TOGGLE_GROUP', group: 'offline' });
-    expect(s.onlineGroupOpen).toBe(true);
-    expect(s.offlineGroupOpen).toBe(false);
+  it('dedupes a relay echo of an already-applied message id', () => {
+    const s = run(signedIn(), text('dup', ALICE, 'once'), text('dup', ALICE, 'once'));
+    const chats = chatOf(s, ALICE)?.messages.filter((m) => m.kind === 'chat');
+    expect(chats).toHaveLength(1);
   });
 
-  it('moving the buddy window switches it from right-anchored to a left coordinate', () => {
-    expect(base().buddyLeft).toBeNull();
-    const s = reducer(base(), { type: 'MOVE_BUDDY', top: 40, left: 120 });
-    expect(s.buddyLeft).toBe(120);
-    expect(s.buddyTop).toBe(40);
-  });
-
-  it('the sign-in window starts centered and takes explicit coords once dragged', () => {
-    expect(base().signinLeft).toBeNull();
-    const s = reducer(base(), { type: 'MOVE_SIGNIN', top: 60, left: 200 });
-    expect(s.signinTop).toBe(60);
-    expect(s.signinLeft).toBe(200);
-  });
-
-  it('signing out re-centers the sign-in window', () => {
-    const s = run(base(),
-      { type: 'MOVE_SIGNIN', top: 60, left: 200 },
-      { type: 'SIGN_IN' },
-      { type: 'SIGN_OUT' },
+  it('optimistic send records the id so its own echo is ignored', () => {
+    const s = run(signedIn(),
+      { type: 'OPEN_CHAT', pubkey: ALICE },
+      { type: 'SET_DRAFT', pubkey: ALICE, draft: 'hi' },
+      { type: 'MESSAGE_SENT', pubkey: ALICE, id: 'r1', time: '(9:07 PM)', payload: { kind: 'text', body: 'hi' } },
+      text('r1', ALICE, 'hi', true), // the gift-wrapped echo of our own send
     );
-    expect(s.signinTop).toBeNull();
-    expect(s.signinLeft).toBeNull();
+    const c = chatOf(s, ALICE);
+    expect(c?.draft).toBe('');
+    expect(c?.messages.filter((m) => m.kind === 'chat')).toHaveLength(1);
+    expect(c?.messages.at(-1)).toMatchObject({ mine: true, body: 'hi' });
+  });
+
+  it('renders an inbound nudge as a system line and shakes the window', () => {
+    const s = reducer(signedIn(), { type: 'MESSAGE_RECEIVED', id: 'n1', partner: ALICE, mine: false, time: '(9:07 PM)', payload: { kind: 'nudge', body: '' } });
+    const c = chatOf(s, ALICE);
+    expect(c?.shake).toBe(true);
+    expect(c?.messages.at(-1)).toMatchObject({ kind: 'system' });
+  });
+
+  it('renders an inbound wink and arms the overlay glyph', () => {
+    const s = reducer(signedIn(), { type: 'MESSAGE_RECEIVED', id: 'w1', partner: ALICE, mine: false, time: '(9:07 PM)', payload: { kind: 'wink', body: '🎉' } });
+    const c = chatOf(s, ALICE);
+    expect(c?.winkOn).toBe(true);
+    expect(c?.winkGlyph).toBe('🎉');
   });
 });

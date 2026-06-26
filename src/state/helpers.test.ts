@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { clamp, formatClock, formatTime, nameFromEmail, pick } from './helpers';
+import { clamp, formatClock, formatTime, pick } from './helpers';
 
 describe('clock formatting', () => {
   // A fixed instant: 2004-03-01T21:07 local time-independent fields are derived
@@ -16,17 +16,6 @@ describe('clock formatting', () => {
 
   it('wraps timestamps in parentheses', () => {
     expect(formatTime(at(13, 0))).toBe('(1:00 PM)');
-  });
-});
-
-describe('nameFromEmail', () => {
-  it('takes the local part', () => {
-    expect(nameFromEmail('sazzlexo@hotmail.com')).toBe('sazzlexo');
-  });
-
-  it('falls back to Me for empty input', () => {
-    expect(nameFromEmail('')).toBe('Me');
-    expect(nameFromEmail('   ')).toBe('Me');
   });
 });
 
