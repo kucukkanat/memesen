@@ -111,6 +111,7 @@ export interface AppState {
   readonly offlineGroupOpen: boolean;
   readonly relayManagerOpen: boolean;
   readonly addContactOpen: boolean;
+  readonly shareOpen: boolean;
   readonly chats: readonly Chat[];
   readonly zTop: number;
   readonly now: number;
@@ -153,6 +154,7 @@ export type Action =
   | { type: 'TOGGLE_GROUP'; group: Group }
   | { type: 'TOGGLE_RELAY_MANAGER' }
   | { type: 'TOGGLE_ADD_CONTACT' }
+  | { type: 'TOGGLE_SHARE' }
   | { type: 'OPEN_CHAT'; pubkey: string }
   | { type: 'CLOSE_CHAT'; pubkey: string }
   | { type: 'FOCUS_CHAT'; pubkey: string }

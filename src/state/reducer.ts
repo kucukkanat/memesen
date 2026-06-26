@@ -29,6 +29,7 @@ export const initialState = (now: number): AppState => ({
   offlineGroupOpen: true,
   relayManagerOpen: false,
   addContactOpen: false,
+  shareOpen: false,
   chats: [],
   zTop: 30,
   now,
@@ -151,6 +152,7 @@ export const reducer = (state: AppState, action: Action): AppState => {
         statusPickerOpen: false,
         relayManagerOpen: false,
         addContactOpen: false,
+        shareOpen: false,
         signinTop: null,
         signinLeft: null,
       };
@@ -217,6 +219,8 @@ export const reducer = (state: AppState, action: Action): AppState => {
       return { ...state, relayManagerOpen: !state.relayManagerOpen };
     case 'TOGGLE_ADD_CONTACT':
       return { ...state, addContactOpen: !state.addContactOpen };
+    case 'TOGGLE_SHARE':
+      return { ...state, shareOpen: !state.shareOpen };
 
     case 'OPEN_CHAT': {
       const z = state.zTop + 1;

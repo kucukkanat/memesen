@@ -26,6 +26,8 @@ export interface NostrCommands {
   readonly setName: (name: string) => void;
   readonly addContact: (pubkey: string, petname: string) => void;
   readonly removeContact: (pubkey: string) => void;
+  /** One-shot fetch of a pubkey's profile/presence (e.g. for an invite preview). */
+  readonly lookup: (pubkey: string) => void;
 }
 
 const ANNOUNCE_GRACE_MS = 2500; // suppress the initial presence backlog flood
@@ -157,5 +159,7 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
     clientRef.current?.publishContacts(followEntries().filter((e) => e.pubkey !== pubkey));
   }, [dispatch, followEntries]);
 
-  return { sendText, sendNudge, sendWink, setStatus, setPsm, setName, addContact, removeContact };
+  const lookup = useCallback((pubkey: string) => clientRef.current?.fetchProfile(pubkey), []);
+
+  return { sendText, sendNudge, sendWink, setStatus, setPsm, setName, addContact, removeContact, lookup };
 };

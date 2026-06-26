@@ -99,6 +99,11 @@ describe('reducer — social graph', () => {
     expect(s.profiles[ME]).toEqual({ name: 'Neo', about: 'the one' });
   });
 
+  it('toggles the share dialog', () => {
+    expect(base().shareOpen).toBe(false);
+    expect(reducer(base(), { type: 'TOGGLE_SHARE' }).shareOpen).toBe(true);
+  });
+
   it('adds and removes contacts and closes the add dialog', () => {
     const added = run(signedIn(),
       { type: 'TOGGLE_ADD_CONTACT' },

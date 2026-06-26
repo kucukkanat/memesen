@@ -11,7 +11,7 @@ import { useResize } from './hooks/useResize';
 import { useNostr, type NostrSink } from './hooks/useNostr';
 import { loadActive, loadIdentities, loadRelays } from './nostr/identity';
 import { normaliseRelay } from './nostr/relays';
-import { avatarFor, createKeyPair, pubkeyFromInput, pubkeyFromNsec, shortNpub } from './nostr/keys';
+import { avatarFor, createKeyPair, npubOf, pubkeyFromInput, pubkeyFromNsec, shortNpub } from './nostr/keys';
 import { isNip05, queryProfile } from 'nostr-tools/nip05';
 import { Taskbar } from './components/Taskbar';
 import { SignIn } from './components/SignIn';
@@ -19,6 +19,8 @@ import { BuddyList } from './components/BuddyList';
 import { ChatWindow } from './components/ChatWindow';
 import { RelayManager } from './components/RelayManager';
 import { AddContact } from './components/AddContact';
+import { ShareContact } from './components/ShareContact';
+import { InviteDialog } from './components/InviteDialog';
 import { ToastStack } from './components/Toasts';
 import type { Toast } from './components/Toasts';
 
@@ -41,6 +43,8 @@ export const App = () => {
 
   const [toasts, setToasts] = useState<readonly Toast[]>([]);
   const [muted, setMutedState] = useState(false);
+  // A pubkey pulled from an `?add=` invite link, pending the user's confirmation.
+  const [pendingInvite, setPendingInvite] = useState<string | null>(null);
   const toastId = useRef(0);
   const nudgeAt = useRef<Record<string, number>>({});
 
@@ -56,6 +60,30 @@ export const App = () => {
       setMuted(next);
       return next;
     });
+  }, []);
+
+  const inviteLinkFor = useCallback(
+    (pubkey: string) => `${window.location.origin}${window.location.pathname}?add=${npubOf(pubkey)}`,
+    [],
+  );
+
+  // Copy text, confirming with a toast; falls back to a prompt if the
+  // Clipboard API is unavailable (e.g. insecure context).
+  const copy = useCallback((text: string, label: string) => {
+    const done = (): void => pushToast({ title: 'Copied', body: `Your ${label} is on the clipboard.`, status: 'online', avatar: stateRef.current.myAvatar });
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(() => window.prompt(`Copy your ${label}:`, text));
+    } else {
+      window.prompt(`Copy your ${label}:`, text);
+    }
+  }, [pushToast]);
+
+  // Strip the `?add=` param so a refresh doesn't re-prompt.
+  const clearInviteParam = useCallback(() => {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has('add')) return;
+    url.searchParams.delete('add');
+    window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
   }, []);
 
   // UX side-effects for inbound relay events (sounds, toasts, effect timers).
@@ -103,6 +131,27 @@ export const App = () => {
     const last = active ? identities.find((i) => i.pubkey === active) : undefined;
     if (last) doSignIn(last);
   }, [doSignIn]);
+
+  // Pick up an `?add=<npub>` invite link on load.
+  useEffect(() => {
+    const param = new URLSearchParams(window.location.search).get('add');
+    if (!param) return;
+    const pubkey = pubkeyFromInput(param);
+    if (pubkey) setPendingInvite(pubkey);
+    else clearInviteParam();
+  }, [clearInviteParam]);
+
+  // Once signed in, fetch the inviter's profile for a friendly prompt; an
+  // invite that points at your own key is silently dismissed.
+  useEffect(() => {
+    if (!pendingInvite || state.screen !== 'desktop') return;
+    if (pendingInvite === state.myPubkey) {
+      setPendingInvite(null);
+      clearInviteParam();
+      return;
+    }
+    nostr.lookup(pendingInvite);
+  }, [pendingInvite, state.screen, state.myPubkey, nostr, clearInviteParam]);
 
   useEffect(() => {
     const id = setInterval(() => dispatch({ type: 'TICK', now: Date.now() }), CLOCK_INTERVAL_MS);
@@ -259,6 +308,17 @@ export const App = () => {
     return null;
   }, [nostr]);
 
+  const acceptInvite = useCallback(() => {
+    if (pendingInvite && !stateRef.current.follows.includes(pendingInvite)) nostr.addContact(pendingInvite, '');
+    setPendingInvite(null);
+    clearInviteParam();
+  }, [pendingInvite, nostr, clearInviteParam]);
+
+  const dismissInvite = useCallback(() => {
+    setPendingInvite(null);
+    clearInviteParam();
+  }, [clearInviteParam]);
+
   const addRelay = useCallback((url: string) => {
     const normalised = normaliseRelay(url);
     if (!normalised) {
@@ -343,6 +403,7 @@ export const App = () => {
             onOpenChat={(pubkey) => dispatch({ type: 'OPEN_CHAT', pubkey })}
             onRemoveContact={(pubkey) => dispatch({ type: 'REMOVE_CONTACT', pubkey })}
             onAddContact={() => dispatch({ type: 'TOGGLE_ADD_CONTACT' })}
+            onShare={() => dispatch({ type: 'TOGGLE_SHARE' })}
             onOpenRelays={() => dispatch({ type: 'TOGGLE_RELAY_MANAGER' })}
           />
 
@@ -391,6 +452,27 @@ export const App = () => {
           )}
 
           {state.addContactOpen && <AddContact onAdd={addContact} onClose={() => dispatch({ type: 'TOGGLE_ADD_CONTACT' })} />}
+
+          {state.shareOpen && state.myPubkey && (
+            <ShareContact
+              name={state.myName || 'You'}
+              avatar={state.myAvatar}
+              npub={npubOf(state.myPubkey)}
+              link={inviteLinkFor(state.myPubkey)}
+              onCopyNpub={() => state.myPubkey && copy(npubOf(state.myPubkey), 'public key')}
+              onCopyLink={() => state.myPubkey && copy(inviteLinkFor(state.myPubkey), 'invite link')}
+              onClose={() => dispatch({ type: 'TOGGLE_SHARE' })}
+            />
+          )}
+
+          {pendingInvite && pendingInvite !== state.myPubkey && (
+            <InviteDialog
+              contact={resolveContact(state, pendingInvite)}
+              alreadyAdded={state.follows.includes(pendingInvite)}
+              onAdd={acceptInvite}
+              onCancel={dismissInvite}
+            />
+          )}
         </>
       )}
 

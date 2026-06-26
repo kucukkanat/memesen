@@ -23,6 +23,7 @@ export interface BuddyListProps {
   readonly onOpenChat: (pubkey: string) => void;
   readonly onRemoveContact: (pubkey: string) => void;
   readonly onAddContact: () => void;
+  readonly onShare: () => void;
   readonly onOpenRelays: () => void;
 }
 
@@ -146,10 +147,13 @@ export const BuddyList = (p: BuddyListProps) => {
         </div>
       )}
 
-      {/* add-contact action */}
-      <div style={{ ...SIDE_BORDERS, background: '#eef3fb', padding: '5px 9px', borderBottom: '1px solid #c0d0e8', display: 'flex', gap: 12 }}>
+      {/* add-contact / share actions */}
+      <div style={{ ...SIDE_BORDERS, background: '#eef3fb', padding: '5px 9px', borderBottom: '1px solid #c0d0e8', display: 'flex', gap: 14 }}>
         <span className="msn-link" onClick={p.onAddContact} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ fontSize: 13 }}>＋</span> Add a Contact
+        </span>
+        <span className="msn-link" onClick={p.onShare} title="Copy your public key or invite link" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontSize: 12 }}>🔗</span> Share my contact
         </span>
       </div>
 

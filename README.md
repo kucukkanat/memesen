@@ -22,6 +22,7 @@ and **Winks** that travel to the other person over the wire.
 | Online / Busy / Away / Appear Offline | NIP-38 status tag, decayed to *offline* when stale |
 | Buddy list | follow list (kind 3, NIP-02), with petnames |
 | "Add a Contact" | resolve `npub` / NIP-05 / hex → append to kind 3 |
+| "Share my contact" | one-click copy of your `npub`, or an `?add=<npub>` invite link |
 | Conversation | **NIP-17** gift-wrapped private DM (kind 14 in a kind-1059 wrap) |
 | Talking to a legacy client | also decrypts inbound **NIP-04** (kind 4) |
 | Nudge / Wink | a DM carrying a private control marker, rendered as the effect |
@@ -44,6 +45,10 @@ On first launch, click **Create a new identity** (mints a fresh `nsec`) or
 **Sign In** — Messenger connects to the default relays, pulls your profile,
 follow list and contacts' presence, and starts listening for DMs. Your account is
 remembered and auto-signs-in next time.
+
+To grow your buddy list, use **Add a Contact** (paste an `npub`, NIP-05 or hex
+key), or **Share my contact** to copy your `npub` or an invite link. Opening
+someone's invite link (`…/?add=<npub>`) prompts you to add them in one click.
 
 > ⚠️ **Key storage.** Identities are stored **as plaintext `nsec` in
 > `localStorage`** — chosen for the frictionless "sign me in automatically" feel.
