@@ -24,7 +24,20 @@ export interface IncomingMessage {
   readonly mine: boolean;
   readonly createdAt: number;
   readonly payload: WirePayload;
+  /**
+   * True only for events that arrived *after* the relay's stored backlog
+   * (i.e. after EOSE). Lets the UI toast for genuinely new messages without
+   * re-announcing the whole history on every reload/reconnect.
+   */
+  readonly live: boolean;
 }
+
+/**
+ * Whether an incoming message should surface a notification toast: only
+ * messages from the other party (not our own echo) that arrived live, i.e.
+ * after the relay's stored backlog. This keeps reloads/reconnects quiet.
+ */
+export const shouldAnnounce = (message: IncomingMessage): boolean => !message.mine && message.live;
 
 export interface ClientHandlers {
   readonly onProfile: (pubkey: string, profile: Profile) => void;
@@ -65,20 +78,28 @@ export class NostrClient {
       }),
     );
     // Inbound + our own echoed DMs. Gift wraps are backdated up to 2 days, so we
-    // deliberately use no `since` here and lean on the relay's own limit.
+    // deliberately use no `since` here and lean on the relay's own limit. Each
+    // sub flips `live` on EOSE so the backlog replayed on (re)connect doesn't
+    // re-toast; only events after EOSE are announced as new.
+    const gift = { live: false };
     this.subs.push(
       this.pool.subscribe(this.relays, { kinds: [KIND_GIFT_WRAP], '#p': [this.pubkey] }, {
-        onevent: (e) => this.onGiftWrap(e),
+        onevent: (e) => this.onGiftWrap(e, gift.live),
+        oneose: () => { gift.live = true; },
       }),
     );
+    const inbound = { live: false };
     this.subs.push(
       this.pool.subscribe(this.relays, { kinds: [KIND_DM_LEGACY], '#p': [this.pubkey] }, {
-        onevent: (e) => this.onLegacyDm(e),
+        onevent: (e) => this.onLegacyDm(e, inbound.live),
+        oneose: () => { inbound.live = true; },
       }),
     );
+    const echo = { live: false };
     this.subs.push(
       this.pool.subscribe(this.relays, { kinds: [KIND_DM_LEGACY], authors: [this.pubkey] }, {
-        onevent: (e) => this.onLegacyDm(e),
+        onevent: (e) => this.onLegacyDm(e, echo.live),
+        oneose: () => { echo.live = true; },
       }),
     );
   }
@@ -117,26 +138,26 @@ export class NostrClient {
     if (event.content.trim()) this.handlers.onProfile(event.pubkey, { about: event.content });
   }
 
-  private onGiftWrap(event: Event): void {
+  private onGiftWrap(event: Event, live: boolean): void {
     try {
       const rumor = unwrapEvent(event, this.secret);
       if (rumor.kind !== KIND_CHAT) return;
       const mine = rumor.pubkey === this.pubkey;
       const partner = mine ? tag(rumor, 'p')?.[1] : rumor.pubkey;
       if (!partner) return;
-      this.handlers.onMessage({ id: rumor.id, partner, mine, createdAt: rumor.created_at, payload: decodeWire(rumor.content) });
+      this.handlers.onMessage({ id: rumor.id, partner, mine, createdAt: rumor.created_at, payload: decodeWire(rumor.content), live });
     } catch {
       // A wrap we can't open (not ours / malformed) is silently ignored.
     }
   }
 
-  private onLegacyDm(event: Event): void {
+  private onLegacyDm(event: Event, live: boolean): void {
     const mine = event.pubkey === this.pubkey;
     const partner = mine ? tag(event, 'p')?.[1] : event.pubkey;
     if (!partner) return;
     try {
       const text = nip04.decrypt(this.secret, partner, event.content);
-      this.handlers.onMessage({ id: event.id, partner, mine, createdAt: event.created_at, payload: decodeWire(text) });
+      this.handlers.onMessage({ id: event.id, partner, mine, createdAt: event.created_at, payload: decodeWire(text), live });
     } catch {
       // Undecryptable legacy DM — ignore.
     }

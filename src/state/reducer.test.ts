@@ -14,8 +14,8 @@ const run = (start: AppState, ...actions: readonly Action[]): AppState => action
 const chatOf = (s: AppState, pubkey: string): Chat | undefined => s.chats.find((c) => c.pubkey === pubkey);
 const signedIn = (): AppState => reducer(base(), { type: 'SIGN_IN', pubkey: ME, name: 'me', avatar: 'beach' });
 
-const text = (id: string, partner: string, body: string, mine = false): Action => ({
-  type: 'MESSAGE_RECEIVED', id, partner, mine, time: '(9:07 PM)', payload: { kind: 'text', body },
+const text = (id: string, partner: string, body: string, mine = false, at = 1000): Action => ({
+  type: 'MESSAGE_RECEIVED', id, partner, mine, at, time: '(9:07 PM)', payload: { kind: 'text', body },
 });
 
 describe('reducer — purity', () => {
@@ -118,6 +118,18 @@ describe('reducer — social graph', () => {
     expect(removed.follows).toHaveLength(0);
     expect(removed.petnames[ALICE]).toBeUndefined();
   });
+
+  it('renames a contact and clears the petname when blank', () => {
+    const added = reducer(signedIn(), { type: 'ADD_CONTACT', pubkey: ALICE, petname: 'Ally' });
+
+    const renamed = reducer(added, { type: 'SET_PETNAME', pubkey: ALICE, petname: 'Alice B.' });
+    expect(renamed.petnames[ALICE]).toBe('Alice B.');
+    expect(renamed.follows).toEqual([ALICE]); // membership untouched
+
+    const cleared = reducer(renamed, { type: 'SET_PETNAME', pubkey: ALICE, petname: '' });
+    expect(cleared.petnames[ALICE]).toBeUndefined(); // falls back to profile name
+    expect(cleared.follows).toEqual([ALICE]);
+  });
 });
 
 describe('reducer — relays', () => {
@@ -144,6 +156,7 @@ describe('reducer — chat windows', () => {
     expect(chatOf(s, ALICE)?.messages[0]).toEqual({
       kind: 'system',
       text: 'Never give out your password or credit card number in an instant message conversation.',
+      at: 0,
     });
   });
 
@@ -183,7 +196,7 @@ describe('reducer — messaging', () => {
     const s = reducer(signedIn(), text('e1', ALICE, 'hello :)'));
     const c = chatOf(s, ALICE);
     expect(c?.flashing).toBe(false);
-    expect(c?.messages.at(-1)).toEqual({ kind: 'chat', id: 'e1', mine: false, body: 'hello :)', time: '(9:07 PM)' });
+    expect(c?.messages.at(-1)).toEqual({ kind: 'chat', id: 'e1', mine: false, body: 'hello :)', time: '(9:07 PM)', at: 1000 });
   });
 
   it('flashes a background window when a message arrives for it', () => {
@@ -193,6 +206,19 @@ describe('reducer — messaging', () => {
       text('e1', ALICE, 'oi'),
     );
     expect(chatOf(s, ALICE)?.flashing).toBe(true);
+  });
+
+  it('orders the transcript by timestamp even when relayed out of order', () => {
+    // Backlog replayed newest-first, plus a backdated gift wrap arriving last.
+    const s = run(signedIn(),
+      text('e3', ALICE, 'third', false, 3000),
+      text('e1', ALICE, 'first', false, 1000),
+      text('e2', ALICE, 'second', false, 2000),
+    );
+    const bodies = chatOf(s, ALICE)?.messages.filter((m) => m.kind === 'chat').map((m) => m.kind === 'chat' && m.body);
+    expect(bodies).toEqual(['first', 'second', 'third']);
+    // Safety notice (at: 0) stays pinned to the top.
+    expect(chatOf(s, ALICE)?.messages[0]?.kind).toBe('system');
   });
 
   it('dedupes a relay echo of an already-applied message id', () => {
@@ -205,7 +231,7 @@ describe('reducer — messaging', () => {
     const s = run(signedIn(),
       { type: 'OPEN_CHAT', pubkey: ALICE },
       { type: 'SET_DRAFT', pubkey: ALICE, draft: 'hi' },
-      { type: 'MESSAGE_SENT', pubkey: ALICE, id: 'r1', time: '(9:07 PM)', payload: { kind: 'text', body: 'hi' } },
+      { type: 'MESSAGE_SENT', pubkey: ALICE, id: 'r1', at: 1000, time: '(9:07 PM)', payload: { kind: 'text', body: 'hi' } },
       text('r1', ALICE, 'hi', true), // the gift-wrapped echo of our own send
     );
     const c = chatOf(s, ALICE);
@@ -215,14 +241,14 @@ describe('reducer — messaging', () => {
   });
 
   it('renders an inbound nudge as a system line and shakes the window', () => {
-    const s = reducer(signedIn(), { type: 'MESSAGE_RECEIVED', id: 'n1', partner: ALICE, mine: false, time: '(9:07 PM)', payload: { kind: 'nudge', body: '' } });
+    const s = reducer(signedIn(), { type: 'MESSAGE_RECEIVED', id: 'n1', partner: ALICE, mine: false, at: 1000, time: '(9:07 PM)', payload: { kind: 'nudge', body: '' } });
     const c = chatOf(s, ALICE);
     expect(c?.shake).toBe(true);
     expect(c?.messages.at(-1)).toMatchObject({ kind: 'system' });
   });
 
   it('renders an inbound wink and arms the overlay glyph', () => {
-    const s = reducer(signedIn(), { type: 'MESSAGE_RECEIVED', id: 'w1', partner: ALICE, mine: false, time: '(9:07 PM)', payload: { kind: 'wink', body: '🎉' } });
+    const s = reducer(signedIn(), { type: 'MESSAGE_RECEIVED', id: 'w1', partner: ALICE, mine: false, at: 1000, time: '(9:07 PM)', payload: { kind: 'wink', body: '🎉' } });
     const c = chatOf(s, ALICE);
     expect(c?.winkOn).toBe(true);
     expect(c?.winkGlyph).toBe('🎉');

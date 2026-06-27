@@ -1,6 +1,6 @@
-import { CLOSE_BTN, GREEN_BTN, SIDE_BORDERS, TITLE_BAR, TITLE_TEXT } from '../ui/chrome';
-import { Butterfly } from '../assets/icons';
+import { GREEN_BTN } from '../ui/chrome';
 import { Avatar } from '../assets/avatars';
+import { Modal } from './Modal';
 
 export interface ShareContactProps {
   readonly name: string;
@@ -25,14 +25,10 @@ const Field = ({ value, onCopy }: { value: string; onCopy: () => void }) => (
 );
 
 export const ShareContact = (p: ShareContactProps) => (
-  <div style={{ position: 'absolute', top: '46%', left: '50%', transform: 'translate(-50%,-50%)', width: 380, zIndex: 26, boxShadow: '0 12px 38px rgba(0,0,0,.5)' }}>
-    <div style={{ ...TITLE_BAR }}>
-      <span style={{ marginRight: 5, display: 'flex' }}><Butterfly size={15} /></span>
-      <span style={TITLE_TEXT}>Share my contact</span>
-      <div onClick={p.onClose} style={{ ...CLOSE_BTN, width: 19, height: 17, fontSize: 10 }}>✕</div>
-    </div>
-
-    <div style={{ ...SIDE_BORDERS, background: '#fff', borderBottom: '1px solid #06387c', padding: '14px 16px' }}>
+  <Modal title="Share my contact" width={380} onClose={p.onClose} footer={
+    <button onClick={p.onClose} style={{ ...GREEN_BTN, padding: '5px 18px' }}>Done</button>
+  }>
+    <div style={{ padding: '14px 16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
         <Avatar pic={p.avatar} size={42} status="online" />
         <div style={{ minWidth: 0 }}>
@@ -47,9 +43,5 @@ export const ShareContact = (p: ShareContactProps) => (
       <div style={{ color: '#333', marginBottom: 3 }}>Invite link (one-click add):</div>
       <Field value={p.link} onCopy={p.onCopyLink} />
     </div>
-
-    <div style={{ background: 'linear-gradient(180deg,#f4f8fd,#dde8f5)', border: '1px solid #06387c', borderTop: 'none', borderRadius: '0 0 4px 4px', padding: '8px 12px', display: 'flex', justifyContent: 'flex-end' }}>
-      <button onClick={p.onClose} style={{ ...GREEN_BTN, padding: '5px 18px' }}>Done</button>
-    </div>
-  </div>
+  </Modal>
 );

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { RelayInfo, RelayStatus } from '../state/types';
-import { CLOSE_BTN, GREEN_BTN, SIDE_BORDERS, TITLE_BAR, TITLE_TEXT } from '../ui/chrome';
-import { Butterfly } from '../assets/icons';
+import { GREEN_BTN } from '../ui/chrome';
+import { Modal } from './Modal';
 
 export interface RelayManagerProps {
   readonly relays: readonly RelayInfo[];
@@ -36,14 +36,10 @@ export const RelayManager = (p: RelayManagerProps) => {
   const row: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', borderBottom: '1px solid #eef2f8' };
 
   return (
-    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 388, zIndex: 26, boxShadow: '0 12px 38px rgba(0,0,0,.5)' }}>
-      <div style={{ ...TITLE_BAR }}>
-        <span style={{ marginRight: 5, display: 'flex' }}><Butterfly size={15} /></span>
-        <span style={TITLE_TEXT}>Connection</span>
-        <div onClick={p.onClose} style={{ ...CLOSE_BTN, width: 19, height: 17, fontSize: 10 }}>✕</div>
-      </div>
-
-      <div style={{ ...SIDE_BORDERS, background: '#fff', borderBottom: '1px solid #06387c' }}>
+    <Modal title="Connection" width={388} onClose={p.onClose} footer={
+      <button onClick={p.onClose} style={{ ...GREEN_BTN, padding: '4px 18px' }}>Close</button>
+    }>
+      <div>
         <div style={{ padding: '8px 10px', color: '#33476a', fontSize: 11, background: 'linear-gradient(180deg,#eaf3ff,#d7e6fa)', borderBottom: '1px solid #b9c8de' }}>
           Messenger sends and receives through these <b>servers</b>. A few popular ones are set up for you — add your own any time.
         </div>
@@ -74,10 +70,6 @@ export const RelayManager = (p: RelayManagerProps) => {
           <button onClick={add} style={{ ...GREEN_BTN, padding: '4px 14px' }}>Add</button>
         </div>
       </div>
-
-      <div style={{ background: 'linear-gradient(180deg,#f4f8fd,#dde8f5)', border: '1px solid #06387c', borderTop: 'none', borderRadius: '0 0 4px 4px', padding: '6px 10px', display: 'flex', justifyContent: 'flex-end' }}>
-        <button onClick={p.onClose} style={{ ...GREEN_BTN, padding: '4px 18px' }}>Close</button>
-      </div>
-    </div>
+    </Modal>
   );
 };

@@ -8,7 +8,7 @@ import type { Dispatch } from 'react';
 import type { Action, AppState, Profile, SelectableStatus } from '../state/types';
 import { formatTime } from '../state/helpers';
 import { secretFromNsec } from '../nostr/keys';
-import { NostrClient, type IncomingMessage } from '../nostr/client';
+import { NostrClient, shouldAnnounce, type IncomingMessage } from '../nostr/client';
 import { saveActive, saveIdentities, saveRelays } from '../nostr/identity';
 
 /** UX side effects the App layer owns (sounds, toasts) — fired at the I/O edge. */
@@ -27,6 +27,7 @@ export interface NostrCommands {
   readonly setAvatar: (picture: string) => void;
   readonly addContact: (pubkey: string, petname: string) => void;
   readonly removeContact: (pubkey: string) => void;
+  readonly renameContact: (pubkey: string, petname: string) => void;
   /** One-shot fetch of a pubkey's profile/presence (e.g. for an invite preview). */
   readonly lookup: (pubkey: string) => void;
 }
@@ -80,10 +81,13 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
           id: message.id,
           partner: message.partner,
           mine: message.mine,
+          at: message.createdAt,
           time: formatTime(message.createdAt * 1000),
           payload: message.payload,
         });
-        if (!message.mine) sinkRef.current.onIncoming(message.partner, message);
+        // Only toast for genuinely new messages — `live` is false for the
+        // stored backlog the relay replays on every (re)connect.
+        if (shouldAnnounce(message)) sinkRef.current.onIncoming(message.partner, message);
       },
       onRelayStatus: (url, status) => dispatch({ type: 'RELAY_STATUS', url, status }),
     });
@@ -112,21 +116,21 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
     const client = clientRef.current;
     if (!client) return;
     const id = client.sendDm(pubkey, { kind: 'text', body });
-    dispatch({ type: 'MESSAGE_SENT', pubkey, id, time: formatTime(Date.now()), payload: { kind: 'text', body } });
+    dispatch({ type: 'MESSAGE_SENT', pubkey, id, at: Math.floor(Date.now() / 1000), time: formatTime(Date.now()), payload: { kind: 'text', body } });
   }, [dispatch]);
 
   const sendNudge = useCallback((pubkey: string) => {
     const client = clientRef.current;
     if (!client) return;
     const id = client.sendDm(pubkey, { kind: 'nudge', body: '' });
-    dispatch({ type: 'MESSAGE_SENT', pubkey, id, time: formatTime(Date.now()), payload: { kind: 'nudge', body: '' } });
+    dispatch({ type: 'MESSAGE_SENT', pubkey, id, at: Math.floor(Date.now() / 1000), time: formatTime(Date.now()), payload: { kind: 'nudge', body: '' } });
   }, [dispatch]);
 
   const sendWink = useCallback((pubkey: string, glyph: string) => {
     const client = clientRef.current;
     if (!client) return;
     const id = client.sendDm(pubkey, { kind: 'wink', body: glyph });
-    dispatch({ type: 'MESSAGE_SENT', pubkey, id, time: formatTime(Date.now()), payload: { kind: 'wink', body: glyph } });
+    dispatch({ type: 'MESSAGE_SENT', pubkey, id, at: Math.floor(Date.now() / 1000), time: formatTime(Date.now()), payload: { kind: 'wink', body: glyph } });
   }, [dispatch]);
 
   const setStatus = useCallback((status: SelectableStatus) => {
@@ -168,7 +172,16 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
     clientRef.current?.publishContacts(followEntries().filter((e) => e.pubkey !== pubkey));
   }, [dispatch, followEntries]);
 
+  const renameContact = useCallback((pubkey: string, petname: string) => {
+    dispatch({ type: 'SET_PETNAME', pubkey, petname });
+    // followEntries() still reflects pre-dispatch petnames, so override the
+    // renamed entry inline rather than relying on the not-yet-applied state.
+    clientRef.current?.publishContacts(
+      followEntries().map((e) => (e.pubkey === pubkey ? { ...e, petname } : e)),
+    );
+  }, [dispatch, followEntries]);
+
   const lookup = useCallback((pubkey: string) => clientRef.current?.fetchProfile(pubkey), []);
 
-  return { sendText, sendNudge, sendWink, setStatus, setPsm, setName, setAvatar, addContact, removeContact, lookup };
+  return { sendText, sendNudge, sendWink, setStatus, setPsm, setName, setAvatar, addContact, removeContact, renameContact, lookup };
 };

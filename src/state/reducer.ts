@@ -45,7 +45,7 @@ const mapChat = (state: AppState, pubkey: string, fn: (chat: Chat) => Chat): rea
 
 const newChat = (pubkey: string, z: number, index: number): Chat => ({
   pubkey,
-  messages: [{ kind: 'system', text: SAFETY_NOTICE }],
+  messages: [{ kind: 'system', text: SAFETY_NOTICE, at: 0 }],
   seen: [],
   draft: '',
   emojiOpen: false,
@@ -61,7 +61,13 @@ const newChat = (pubkey: string, z: number, index: number): Chat => ({
   height: 470,
 });
 
-const append = (chat: Chat, message: Message): Chat => ({ ...chat, messages: [...chat.messages, message] });
+// Keep the transcript chronological: relays replay backlog out of order and
+// gift wraps can be backdated, so sort on every insert. Array.sort is stable,
+// so equal-timestamp messages keep their arrival order.
+const append = (chat: Chat, message: Message): Chat => ({
+  ...chat,
+  messages: [...chat.messages, message].sort((a, b) => a.at - b.at),
+});
 const markSeen = (chat: Chat, id: string): Chat => ({ ...chat, seen: [...chat.seen, id] });
 
 const mergeProfile = (prev: Profile | undefined, next: Profile): Profile => ({ ...prev, ...next });
@@ -73,6 +79,7 @@ interface ApplyArgs {
   readonly pubkey: string;
   readonly id: string;
   readonly mine: boolean;
+  readonly at: number;
   readonly time: string;
   readonly payload: IncomingPayload;
   /** true => from the network (may flash a background window); false => our own optimistic send. */
@@ -81,7 +88,7 @@ interface ApplyArgs {
 
 /** Fold one decrypted DM into the relevant chat, opening it if necessary. */
 const applyMessage = (state: AppState, args: ApplyArgs): AppState => {
-  const { pubkey, id, mine, time, payload, inbound } = args;
+  const { pubkey, id, mine, at, time, payload, inbound } = args;
   const existing = state.chats.find((c) => c.pubkey === pubkey);
   if (existing?.seen.includes(id)) return state; // duplicate relay delivery
 
@@ -93,15 +100,15 @@ const applyMessage = (state: AppState, args: ApplyArgs): AppState => {
   let chat = markSeen(base, id);
   switch (payload.kind) {
     case 'text':
-      chat = append(chat, { kind: 'chat', id, mine, body: payload.body, time });
+      chat = append(chat, { kind: 'chat', id, mine, body: payload.body, time, at });
       if (!inbound) chat = { ...chat, draft: '' };
       break;
     case 'nudge':
-      chat = append(chat, { kind: 'system', text: mine ? 'You have just sent a Nudge.' : `${name} has just sent you a Nudge.` });
+      chat = append(chat, { kind: 'system', text: mine ? 'You have just sent a Nudge.' : `${name} has just sent you a Nudge.`, at });
       chat = { ...chat, shake: true };
       break;
     case 'wink':
-      chat = append(chat, { kind: 'system', text: mine ? 'You have sent a Wink.' : `${name} sent you a Wink.` });
+      chat = append(chat, { kind: 'system', text: mine ? 'You have sent a Wink.' : `${name} sent you a Wink.`, at });
       chat = { ...chat, winkOn: true, winkGlyph: payload.body || chat.winkGlyph };
       break;
   }
@@ -205,6 +212,14 @@ export const reducer = (state: AppState, action: Action): AppState => {
       delete petnames[action.pubkey];
       return { ...state, follows: state.follows.filter((p) => p !== action.pubkey), petnames };
     }
+    case 'SET_PETNAME': {
+      // An empty petname clears the override, so the row falls back to the
+      // contact's own profile name (see `displayName`).
+      const petnames = { ...state.petnames };
+      if (action.petname) petnames[action.pubkey] = action.petname;
+      else delete petnames[action.pubkey];
+      return { ...state, petnames };
+    }
 
     case 'ADD_RELAY':
       return state.relays.some((r) => r.url === action.url)
@@ -264,11 +279,11 @@ export const reducer = (state: AppState, action: Action): AppState => {
       return { ...state, chats: mapChat(state, action.pubkey, (c) => ({ ...c, winkOn: action.on, winkGlyph: action.glyph ?? c.winkGlyph })) };
 
     case 'MESSAGE_SENT':
-      return applyMessage(state, { pubkey: action.pubkey, id: action.id, mine: true, time: action.time, payload: action.payload, inbound: false });
+      return applyMessage(state, { pubkey: action.pubkey, id: action.id, mine: true, at: action.at, time: action.time, payload: action.payload, inbound: false });
     case 'MESSAGE_RECEIVED':
-      return applyMessage(state, { pubkey: action.partner, id: action.id, mine: action.mine, time: action.time, payload: action.payload, inbound: true });
+      return applyMessage(state, { pubkey: action.partner, id: action.id, mine: action.mine, at: action.at, time: action.time, payload: action.payload, inbound: true });
     case 'APPEND_SYSTEM':
-      return { ...state, chats: mapChat(state, action.pubkey, (c) => append(c, { kind: 'system', text: action.text })) };
+      return { ...state, chats: mapChat(state, action.pubkey, (c) => append(c, { kind: 'system', text: action.text, at: Math.floor(state.now / 1000) })) };
 
     case 'TICK':
       return { ...state, now: action.now };

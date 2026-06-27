@@ -23,6 +23,7 @@ export interface BuddyListProps {
   readonly onToggleGroup: (g: 'online' | 'offline') => void;
   readonly onOpenChat: (pubkey: string) => void;
   readonly onRemoveContact: (pubkey: string) => void;
+  readonly onRenameContact: (pubkey: string) => void;
   readonly onAddContact: () => void;
   readonly onShare: () => void;
   readonly onOpenRelays: () => void;
@@ -39,7 +40,7 @@ const GROUP_HEADER: CSSProperties = {
   color: '#0a3a8c',
 };
 
-const ContactRow = ({ contact, onOpen, onRemove }: { contact: ResolvedContact; onOpen: () => void; onRemove: () => void }) => {
+const ContactRow = ({ contact, onOpen, onRemove, onRename }: { contact: ResolvedContact; onOpen: () => void; onRemove: () => void; onRename: () => void }) => {
   const offline = contact.status === 'offline';
   return (
     <div
@@ -58,6 +59,14 @@ const ContactRow = ({ contact, onOpen, onRemove }: { contact: ResolvedContact; o
         {contact.psm && !offline && (
           <span style={{ color: '#8a93a0', fontStyle: 'italic' }}> - <RichText text={contact.psm} size={13} /></span>
         )}
+      </span>
+      <span
+        title="Rename contact"
+        onClick={(e) => { e.stopPropagation(); onRename(); }}
+        className="msn-rowx"
+        style={{ color: '#9aa6b6', fontSize: 11, padding: '0 2px' }}
+      >
+        ✎
       </span>
       <span
         title="Remove contact"
@@ -163,12 +172,12 @@ export const BuddyList = (p: BuddyListProps) => {
         <div onClick={() => p.onToggleGroup('online')} style={{ ...GROUP_HEADER, borderBottom: '1px solid #dce6f3' }}>
           <span style={{ fontSize: 8, width: 8 }}>{s.onlineGroupOpen ? '▼' : '▶'}</span> Online ({online.length})
         </div>
-        {s.onlineGroupOpen && online.map((c) => <ContactRow key={c.pubkey} contact={c} onOpen={() => p.onOpenChat(c.pubkey)} onRemove={() => p.onRemoveContact(c.pubkey)} />)}
+        {s.onlineGroupOpen && online.map((c) => <ContactRow key={c.pubkey} contact={c} onOpen={() => p.onOpenChat(c.pubkey)} onRemove={() => p.onRemoveContact(c.pubkey)} onRename={() => p.onRenameContact(c.pubkey)} />)}
 
         <div onClick={() => p.onToggleGroup('offline')} style={{ ...GROUP_HEADER, borderTop: '1px solid #dce6f3', borderBottom: '1px solid #dce6f3' }}>
           <span style={{ fontSize: 8, width: 8 }}>{s.offlineGroupOpen ? '▼' : '▶'}</span> Offline ({offline.length})
         </div>
-        {s.offlineGroupOpen && offline.map((c) => <ContactRow key={c.pubkey} contact={c} onOpen={() => p.onOpenChat(c.pubkey)} onRemove={() => p.onRemoveContact(c.pubkey)} />)}
+        {s.offlineGroupOpen && offline.map((c) => <ContactRow key={c.pubkey} contact={c} onOpen={() => p.onOpenChat(c.pubkey)} onRemove={() => p.onRemoveContact(c.pubkey)} onRename={() => p.onRenameContact(c.pubkey)} />)}
 
         {p.contacts.length === 0 && (
           <div style={{ padding: '14px 10px', color: '#8a93a0', fontSize: 11, textAlign: 'center', lineHeight: 1.5 }}>

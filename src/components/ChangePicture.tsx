@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { CLOSE_BTN, GREEN_BTN, SIDE_BORDERS, TITLE_BAR, TITLE_TEXT } from '../ui/chrome';
-import { Butterfly } from '../assets/icons';
+import { GREEN_BTN } from '../ui/chrome';
 import { Avatar } from '../assets/avatars';
 import { AVATAR_KEYS } from '../nostr/keys';
+import { Modal } from './Modal';
 
 export interface ChangePictureProps {
   readonly current: string;
@@ -29,14 +29,18 @@ export const ChangePicture = (p: ChangePictureProps) => {
   const isSelected = (key: string): boolean => selected === `memesen:${key}` || selected === key;
 
   return (
-    <div style={{ position: 'absolute', top: '46%', left: '50%', transform: 'translate(-50%,-50%)', width: 384, zIndex: 26, boxShadow: '0 12px 38px rgba(0,0,0,.5)' }}>
-      <div style={{ ...TITLE_BAR }}>
-        <span style={{ marginRight: 5, display: 'flex' }}><Butterfly size={15} /></span>
-        <span style={TITLE_TEXT}>Display Picture</span>
-        <div onClick={p.onClose} style={{ ...CLOSE_BTN, width: 19, height: 17, fontSize: 10 }}>✕</div>
-      </div>
-
-      <div style={{ ...SIDE_BORDERS, background: '#fff', borderBottom: '1px solid #06387c', padding: '14px 16px' }}>
+    <Modal title="Display Picture" width={384} onClose={p.onClose} footer={
+      <>
+        <button onClick={p.onClose} style={{ ...GREEN_BTN, padding: '5px 16px', background: 'linear-gradient(180deg,#fdfdfd,#dfe6ef)', color: '#33476a', borderColor: '#9bb0d0' }}>Cancel</button>
+        <button
+          onClick={() => selected.trim() && p.onChoose(selected.trim())}
+          style={{ ...GREEN_BTN, padding: '5px 22px', opacity: selected.trim() ? 1 : 0.6 }}
+        >
+          OK
+        </button>
+      </>
+    }>
+      <div style={{ padding: '14px 16px' }}>
         <div style={{ display: 'flex', gap: 14 }}>
           <div style={{ textAlign: 'center', flexShrink: 0 }}>
             <Avatar pic={selected || p.current} size={72} status="online" style={{ margin: '0 auto' }} />
@@ -77,16 +81,6 @@ export const ChangePicture = (p: ChangePictureProps) => {
           />
         </div>
       </div>
-
-      <div style={{ background: 'linear-gradient(180deg,#f4f8fd,#dde8f5)', border: '1px solid #06387c', borderTop: 'none', borderRadius: '0 0 4px 4px', padding: '8px 12px', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        <button onClick={p.onClose} style={{ ...GREEN_BTN, padding: '5px 16px', background: 'linear-gradient(180deg,#fdfdfd,#dfe6ef)', color: '#33476a', borderColor: '#9bb0d0' }}>Cancel</button>
-        <button
-          onClick={() => selected.trim() && p.onChoose(selected.trim())}
-          style={{ ...GREEN_BTN, padding: '5px 22px', opacity: selected.trim() ? 1 : 0.6 }}
-        >
-          OK
-        </button>
-      </div>
-    </div>
+    </Modal>
   );
 };

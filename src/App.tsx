@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import type { MouseEvent as ReactMouseEvent } from 'react';
+import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import type { AppState, Identity, SelectableStatus } from './state/types';
 import { WINK_GLYPHS } from './state/data';
 import { pick } from './state/helpers';
@@ -19,6 +19,8 @@ import { BuddyList } from './components/BuddyList';
 import { ChatWindow } from './components/ChatWindow';
 import { RelayManager } from './components/RelayManager';
 import { AddContact } from './components/AddContact';
+import { ConfirmDialog } from './components/ConfirmDialog';
+import { PromptDialog } from './components/PromptDialog';
 import { ChangePicture } from './components/ChangePicture';
 import { ShareContact } from './components/ShareContact';
 import { InviteDialog } from './components/InviteDialog';
@@ -31,6 +33,17 @@ const NUDGE_COOLDOWN_MS = 6_000; // "You may not send a Nudge that often."
 const TOAST_TTL_MS = 6_000;
 const SHAKE_MS = 900;
 const WINK_MS = 1400;
+
+/** A pending single-field text prompt, rendered by `PromptDialog`. */
+interface PromptState {
+  readonly title: string;
+  readonly label: string;
+  readonly initial: string;
+  readonly placeholder?: string;
+  readonly confirmLabel?: string;
+  readonly allowEmpty?: boolean;
+  readonly onSubmit: (value: string) => void;
+}
 
 // Build the initial state synchronously from persisted storage, so a refresh
 // comes back already signed-in (no flash of the sign-in screen) and the
@@ -67,6 +80,12 @@ export const App = () => {
   const [muted, setMutedState] = useState(false);
   // A pubkey pulled from an `?add=` invite link, pending the user's confirmation.
   const [pendingInvite, setPendingInvite] = useState<string | null>(null);
+  // A contact awaiting delete confirmation in the XP-style message box.
+  const [pendingRemoval, setPendingRemoval] = useState<string | null>(null);
+  // The active text prompt (display name, personal message, contact nickname…).
+  const [activePrompt, setActivePrompt] = useState<PromptState | null>(null);
+  // A passive notice (validation errors) shown in an OK-only message box.
+  const [notice, setNotice] = useState<{ readonly title: string; readonly message: ReactNode } | null>(null);
   const toastId = useRef(0);
   const nudgeAt = useRef<Record<string, number>>({});
 
@@ -239,34 +258,47 @@ export const App = () => {
     doSignIn(identity);
   }, [doSignIn]);
 
-  const importIdentity = useCallback(() => {
-    const raw = window.prompt('Paste your account secret key:');
-    if (!raw) return;
-    const nsec = raw.trim();
-    try {
-      const pubkey = pubkeyFromNsec(nsec);
-      const identity: Identity = { pubkey, nsec, name: '' };
-      dispatch({ type: 'ADD_IDENTITY', identity });
-      doSignIn(identity);
-    } catch {
-      window.alert("That doesn't look like a valid account secret key.");
-    }
-  }, [doSignIn]);
+  const importIdentity = useCallback(() => setActivePrompt({
+    title: 'Sign in with a secret key',
+    label: 'Paste your account secret key (starts with nsec):',
+    initial: '',
+    placeholder: 'nsec1…',
+    confirmLabel: 'Sign in',
+    onSubmit: (raw) => {
+      const nsec = raw.trim();
+      try {
+        const identity: Identity = { pubkey: pubkeyFromNsec(nsec), nsec, name: '' };
+        dispatch({ type: 'ADD_IDENTITY', identity });
+        setActivePrompt(null);
+        doSignIn(identity);
+      } catch {
+        setActivePrompt(null);
+        setNotice({ title: 'Sign in', message: "That doesn't look like a valid account secret key." });
+      }
+    },
+  }), [doSignIn]);
 
   const signOut = useCallback(() => {
     playSound('offline');
     dispatch({ type: 'SIGN_OUT' });
   }, []);
 
-  const editPsm = useCallback(() => {
-    const next = window.prompt('Personal message:', stateRef.current.myPsm);
-    if (next !== null) nostr.setPsm(next);
-  }, [nostr]);
+  const editPsm = useCallback(() => setActivePrompt({
+    title: 'Personal Message',
+    label: 'Type a personal message (shown next to your name):',
+    initial: stateRef.current.myPsm,
+    placeholder: "What's on your mind?",
+    allowEmpty: true,
+    onSubmit: (v) => { nostr.setPsm(v); setActivePrompt(null); },
+  }), [nostr]);
 
-  const editName = useCallback(() => {
-    const next = window.prompt('Display name:', stateRef.current.myName);
-    if (next) nostr.setName(next.trim());
-  }, [nostr]);
+  const editName = useCallback(() => setActivePrompt({
+    title: 'Display Name',
+    label: 'Type your display name (this is what your contacts see):',
+    initial: stateRef.current.myName,
+    placeholder: 'Display name',
+    onSubmit: (v) => { nostr.setName(v.trim()); setActivePrompt(null); },
+  }), [nostr]);
 
   // --- messaging actions ---------------------------------------------------
 
@@ -320,6 +352,23 @@ export const App = () => {
     return null;
   }, [nostr]);
 
+  const renameContact = useCallback((pubkey: string) => setActivePrompt({
+    title: 'Rename Contact',
+    label: 'Nickname for this contact (leave blank to use their own name):',
+    initial: stateRef.current.petnames[pubkey] ?? '',
+    placeholder: 'Nickname',
+    confirmLabel: 'Rename',
+    allowEmpty: true,
+    onSubmit: (v) => { nostr.renameContact(pubkey, v.trim()); setActivePrompt(null); },
+  }), [nostr]);
+
+  const confirmRemoval = useCallback(() => {
+    setPendingRemoval((pubkey) => {
+      if (pubkey) dispatch({ type: 'REMOVE_CONTACT', pubkey });
+      return null;
+    });
+  }, []);
+
   const acceptInvite = useCallback(() => {
     if (pendingInvite && !stateRef.current.follows.includes(pendingInvite)) nostr.addContact(pendingInvite, '');
     setPendingInvite(null);
@@ -334,7 +383,7 @@ export const App = () => {
   const addRelay = useCallback((url: string) => {
     const normalised = normaliseRelay(url);
     if (!normalised) {
-      window.alert('Enter a valid server address, e.g. wss://server.example.com');
+      setNotice({ title: 'Add a server', message: 'Enter a valid server address, e.g. wss://server.example.com' });
       return;
     }
     dispatch({ type: 'ADD_RELAY', url: normalised });
@@ -414,7 +463,8 @@ export const App = () => {
             onChangePicture={() => dispatch({ type: 'TOGGLE_CHANGE_PICTURE' })}
             onToggleGroup={(group) => dispatch({ type: 'TOGGLE_GROUP', group })}
             onOpenChat={(pubkey) => dispatch({ type: 'OPEN_CHAT', pubkey })}
-            onRemoveContact={(pubkey) => dispatch({ type: 'REMOVE_CONTACT', pubkey })}
+            onRemoveContact={setPendingRemoval}
+            onRenameContact={renameContact}
             onAddContact={() => dispatch({ type: 'TOGGLE_ADD_CONTACT' })}
             onShare={() => dispatch({ type: 'TOGGLE_SHARE' })}
             onOpenRelays={() => dispatch({ type: 'TOGGLE_RELAY_MANAGER' })}
@@ -492,6 +542,21 @@ export const App = () => {
             />
           )}
 
+          {pendingRemoval && (
+            <ConfirmDialog
+              title="Delete Contact"
+              message={
+                <>
+                  Are you sure you want to delete <b>{resolveContact(state, pendingRemoval).name}</b> from your contact list?
+                </>
+              }
+              confirmLabel="Delete"
+              cancelLabel="Cancel"
+              onConfirm={confirmRemoval}
+              onCancel={() => setPendingRemoval(null)}
+            />
+          )}
+
           {pendingInvite && pendingInvite !== state.myPubkey && (
             <InviteDialog
               contact={resolveContact(state, pendingInvite)}
@@ -501,6 +566,20 @@ export const App = () => {
             />
           )}
         </>
+      )}
+
+      {activePrompt && <PromptDialog {...activePrompt} onCancel={() => setActivePrompt(null)} />}
+
+      {notice && (
+        <ConfirmDialog
+          title={notice.title}
+          message={notice.message}
+          icon="info"
+          confirmLabel="OK"
+          cancelLabel={null}
+          onConfirm={() => setNotice(null)}
+          onCancel={() => setNotice(null)}
+        />
       )}
 
       <ToastStack toasts={toasts} onDismiss={(id) => setToasts((ts) => ts.filter((t) => t.id !== id))} />

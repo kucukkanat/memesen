@@ -45,15 +45,19 @@ export interface Presence {
   readonly at: number;
 }
 
+type MessageBase = {
+  /** Event `created_at` in seconds; the transcript is kept sorted by it. */
+  readonly at: number;
+};
 export type Message =
-  | { readonly kind: 'system'; readonly text: string }
-  | {
+  | (MessageBase & { readonly kind: 'system'; readonly text: string })
+  | (MessageBase & {
       readonly kind: 'chat';
       readonly id: string; // rumor/event id, used to dedupe relay echoes
       readonly mine: boolean;
       readonly body: string;
       readonly time: string; // pre-formatted clock, e.g. "(9:07 PM)"
-    };
+    });
 
 /** A DM payload as it crosses the reducer boundary (already decrypted). */
 export type WireKind = 'text' | 'nudge' | 'wink';
@@ -146,6 +150,7 @@ export type Action =
   // contacts
   | { type: 'ADD_CONTACT'; pubkey: string; petname: string }
   | { type: 'REMOVE_CONTACT'; pubkey: string }
+  | { type: 'SET_PETNAME'; pubkey: string; petname: string }
   // relays
   | { type: 'ADD_RELAY'; url: string }
   | { type: 'REMOVE_RELAY'; url: string }
@@ -170,7 +175,7 @@ export type Action =
   | { type: 'SET_FLASH'; pubkey: string; on: boolean }
   | { type: 'SET_WINK'; pubkey: string; on: boolean; glyph?: string }
   // messaging
-  | { type: 'MESSAGE_SENT'; pubkey: string; id: string; time: string; payload: IncomingPayload }
-  | { type: 'MESSAGE_RECEIVED'; id: string; partner: string; mine: boolean; time: string; payload: IncomingPayload }
+  | { type: 'MESSAGE_SENT'; pubkey: string; id: string; at: number; time: string; payload: IncomingPayload }
+  | { type: 'MESSAGE_RECEIVED'; id: string; partner: string; mine: boolean; at: number; time: string; payload: IncomingPayload }
   | { type: 'APPEND_SYSTEM'; pubkey: string; text: string }
   | { type: 'TICK'; now: number };

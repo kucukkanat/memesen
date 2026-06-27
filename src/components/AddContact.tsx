@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { CLOSE_BTN, GREEN_BTN, SIDE_BORDERS, TITLE_BAR, TITLE_TEXT } from '../ui/chrome';
-import { Butterfly } from '../assets/icons';
+import { GREEN_BTN } from '../ui/chrome';
+import { Modal } from './Modal';
 
 export interface AddContactProps {
   /** App resolves npub / NIP-05 / hex asynchronously; returns an error string or null. */
@@ -25,14 +25,13 @@ export const AddContact = (p: AddContactProps) => {
   };
 
   return (
-    <div style={{ position: 'absolute', top: '46%', left: '50%', transform: 'translate(-50%,-50%)', width: 340, zIndex: 26, boxShadow: '0 12px 38px rgba(0,0,0,.5)' }}>
-      <div style={{ ...TITLE_BAR }}>
-        <span style={{ marginRight: 5, display: 'flex' }}><Butterfly size={15} /></span>
-        <span style={TITLE_TEXT}>Add a Contact</span>
-        <div onClick={p.onClose} style={{ ...CLOSE_BTN, width: 19, height: 17, fontSize: 10 }}>✕</div>
-      </div>
-
-      <div style={{ ...SIDE_BORDERS, background: '#fff', borderBottom: '1px solid #06387c', padding: '14px 16px' }}>
+    <Modal title="Add a Contact" onClose={p.onClose} footer={
+      <>
+        <button onClick={p.onClose} style={{ ...GREEN_BTN, padding: '5px 16px', background: 'linear-gradient(180deg,#fdfdfd,#dfe6ef)', color: '#33476a', borderColor: '#9bb0d0' }}>Cancel</button>
+        <button onClick={() => void submit()} style={{ ...GREEN_BTN, padding: '5px 20px', opacity: busy ? 0.6 : 1 }}>{busy ? 'Adding…' : 'Add'}</button>
+      </>
+    }>
+      <div style={{ padding: '14px 16px' }}>
         <div style={{ color: '#33476a', fontSize: 11, marginBottom: 12, lineHeight: 1.5 }}>
           Enter your friend's <b>contact address</b> (the one they shared with you).
         </div>
@@ -58,11 +57,6 @@ export const AddContact = (p: AddContactProps) => {
 
         {error && <div style={{ color: '#c83020', fontSize: 11, marginTop: 10 }}>{error}</div>}
       </div>
-
-      <div style={{ background: 'linear-gradient(180deg,#f4f8fd,#dde8f5)', border: '1px solid #06387c', borderTop: 'none', borderRadius: '0 0 4px 4px', padding: '8px 12px', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        <button onClick={p.onClose} style={{ ...GREEN_BTN, padding: '5px 16px', background: 'linear-gradient(180deg,#fdfdfd,#dfe6ef)', color: '#33476a', borderColor: '#9bb0d0' }}>Cancel</button>
-        <button onClick={() => void submit()} style={{ ...GREEN_BTN, padding: '5px 20px', opacity: busy ? 0.6 : 1 }}>{busy ? 'Adding…' : 'Add'}</button>
-      </div>
-    </div>
+    </Modal>
   );
 };
