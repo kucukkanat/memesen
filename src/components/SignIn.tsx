@@ -144,7 +144,7 @@ export const SignIn = (p: SignInProps) => {
 
           <div style={{ marginTop: 16, color: '#2a5db0', display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'center' }}>
             <span className="msn-link" onClick={p.onCreate}>Create a new account</span>
-            <span className="msn-link" onClick={p.onImport}>Import an existing account</span>
+            <span className="msn-link" onClick={p.onImport}>Move or import an account</span>
           </div>
         </div>
       </div>

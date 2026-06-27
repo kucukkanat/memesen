@@ -1,6 +1,6 @@
 {
   "name": "@memesen/app",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "private": true,
   "type": "module",
   "description": "MSN Messenger over Nostr — a faithful early-2000s instant-messenger UI on real encrypted Nostr DMs, identities and relays (React + Bun).",
@@ -13,6 +13,8 @@
     "test:e2e": "echo 'No E2E suite yet — add Playwright here, kept separate from unit/integration on purpose.' && exit 1"
   },
   "dependencies": {
+    "@paulmillr/qr": "^0.3.0",
+    "@scure/bip39": "2.0.1",
     "nostr-tools": "^2.23.8",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

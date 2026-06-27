@@ -12,10 +12,12 @@ import { useIsMobile } from './hooks/useIsMobile';
 import { useNostr, type NostrSink } from './hooks/useNostr';
 import { loadActive, loadIdentities, loadReadMarkers, loadRelays } from './nostr/identity';
 import { normaliseRelay } from './nostr/relays';
-import { avatarFor, createKeyPair, npubOf, pubkeyFromInput, pubkeyFromNsec, shortNpub } from './nostr/keys';
+import { avatarFor, createKeyPair, npubOf, pubkeyFromInput, secretFromInput, shortNpub } from './nostr/keys';
 import { isNip05, queryProfile } from 'nostr-tools/nip05';
 import { Taskbar } from './components/Taskbar';
 import { SignIn } from './components/SignIn';
+import { ExportAccount } from './components/ExportAccount';
+import { ImportAccount } from './components/ImportAccount';
 import { BuddyList } from './components/BuddyList';
 import { ChatWindow } from './components/ChatWindow';
 import { RelayManager } from './components/RelayManager';
@@ -88,6 +90,9 @@ export const App = () => {
 
   const [toasts, setToasts] = useState<readonly Toast[]>([]);
   const [muted, setMutedState] = useState(false);
+  // Account-portability dialogs (move/back up an account; scan/paste to import).
+  const [exportOpen, setExportOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   // A pubkey pulled from an `?add=` invite link, pending the user's confirmation.
   const [pendingInvite, setPendingInvite] = useState<string | null>(null);
   // A contact awaiting delete confirmation in the XP-style message box.
@@ -289,25 +294,20 @@ export const App = () => {
     doSignIn(identity);
   }, [doSignIn]);
 
-  const importIdentity = useCallback(() => setActivePrompt({
-    title: 'Sign in with a secret key',
-    label: 'Paste your account secret key (starts with nsec):',
-    initial: '',
-    placeholder: 'nsec1…',
-    confirmLabel: 'Sign in',
-    onSubmit: (raw) => {
-      const nsec = raw.trim();
-      try {
-        const identity: Identity = { pubkey: pubkeyFromNsec(nsec), nsec, name: '' };
-        dispatch({ type: 'ADD_IDENTITY', identity });
-        setActivePrompt(null);
-        doSignIn(identity);
-      } catch {
-        setActivePrompt(null);
-        setNotice({ title: 'Sign in', message: "That doesn't look like a valid account secret key." });
-      }
-    },
-  }), [doSignIn]);
+  // Parse whatever the user scanned or pasted (nsec / hex / recovery phrase),
+  // reusing an already-known identity so re-importing keeps its saved name.
+  // Returns a friendly error string for the dialog, or null on success.
+  const importSecret = useCallback((raw: string): string | null => {
+    const parsed = secretFromInput(raw);
+    if (!parsed) return "That doesn't look like a secret key, recovery phrase, or account QR code. Double-check it and try again.";
+    if (parsed.pubkey === stateRef.current.myPubkey) return "You're already signed in to that account.";
+    const existing = stateRef.current.identities.find((i) => i.pubkey === parsed.pubkey);
+    const identity: Identity = existing ?? { pubkey: parsed.pubkey, nsec: parsed.nsec, name: '' };
+    dispatch({ type: 'ADD_IDENTITY', identity });
+    setImportOpen(false);
+    doSignIn(identity);
+    return null;
+  }, [doSignIn]);
 
   const signOut = useCallback(() => {
     playSound('offline');
@@ -491,7 +491,7 @@ export const App = () => {
           onStatus={(status: SelectableStatus) => dispatch({ type: 'SET_SIGNIN_STATUS', status })}
           onSignIn={signInPubkey}
           onCreate={createIdentity}
-          onImport={importIdentity}
+          onImport={() => setImportOpen(true)}
           onRemove={(pubkey) => dispatch({ type: 'REMOVE_IDENTITY', pubkey })}
         />
       )}
@@ -515,6 +515,7 @@ export const App = () => {
             onRenameContact={renameContact}
             onAddContact={() => dispatch({ type: 'TOGGLE_ADD_CONTACT' })}
             onShare={() => dispatch({ type: 'TOGGLE_SHARE' })}
+            onExport={() => setExportOpen(true)}
             onOpenRelays={() => dispatch({ type: 'TOGGLE_RELAY_MANAGER' })}
           />
 
@@ -616,6 +617,22 @@ export const App = () => {
           )}
         </>
       )}
+
+      {importOpen && <ImportAccount onImport={importSecret} onClose={() => setImportOpen(false)} />}
+
+      {exportOpen && state.myPubkey && (() => {
+        const me = state.identities.find((i) => i.pubkey === state.myPubkey);
+        return me ? (
+          <ExportAccount
+            name={state.myName || 'You'}
+            avatar={state.myAvatar}
+            nsec={me.nsec}
+            npub={npubOf(state.myPubkey)}
+            onCopy={copy}
+            onClose={() => setExportOpen(false)}
+          />
+        ) : null;
+      })()}
 
       {activePrompt && <PromptDialog {...activePrompt} onCancel={() => setActivePrompt(null)} />}
 

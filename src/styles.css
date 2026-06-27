@@ -118,3 +118,9 @@ body,
   border-color: #f0a830 !important;
   background: #fff7e6 !important;
 }
+
+/* QR code SVG fills its sized container (see ui/qr.tsx). */
+.msn-qr svg { width: 100%; height: 100%; display: block; }
+
+/* Recovery-phrase / secret reveal: blurred until the user chooses to show it. */
+.msn-redacted { filter: blur(5px); user-select: none; transition: filter .12s; }

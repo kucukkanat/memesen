@@ -27,6 +27,7 @@ export interface BuddyListProps {
   readonly onRenameContact: (pubkey: string) => void;
   readonly onAddContact: () => void;
   readonly onShare: () => void;
+  readonly onExport: () => void;
   readonly onOpenRelays: () => void;
 }
 
@@ -168,12 +169,15 @@ export const BuddyList = (p: BuddyListProps) => {
       )}
 
       {/* add-contact / share actions */}
-      <div style={{ ...SIDE_BORDERS, flexShrink: 0, background: '#eef3fb', padding: '5px 9px', borderBottom: '1px solid #c0d0e8', display: 'flex', gap: 14 }}>
+      <div style={{ ...SIDE_BORDERS, flexShrink: 0, background: '#eef3fb', padding: '5px 9px', borderBottom: '1px solid #c0d0e8', display: 'flex', flexWrap: 'wrap', columnGap: 14, rowGap: 4 }}>
         <span className="msn-link" onClick={p.onAddContact} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ fontSize: 13 }}>＋</span> Add a Contact
         </span>
         <span className="msn-link" onClick={p.onShare} title="Copy your contact address or invite link" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ fontSize: 12 }}>🔗</span> Share my contact
+        </span>
+        <span className="msn-link" onClick={p.onExport} title="Move this account to another device, or back it up" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontSize: 12 }}>📲</span> Move account
         </span>
       </div>
 

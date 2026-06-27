@@ -40,8 +40,9 @@ bun install
 bun dev          # hot-reloading dev server → http://localhost:3000
 ```
 
-On first launch, click **Create a new identity** (mints a fresh `nsec`) or
-**Import a key (nsec)** to bring an existing Nostr account. Pick a status and
+On first launch, click **Create a new account** (mints a fresh `nsec`) or
+**Move or import an account** to bring an existing Nostr account (scan a QR from
+another device, or paste an `nsec`/recovery phrase). Pick a status and
 **Sign In** — Messenger connects to the default relays, pulls your profile,
 follow list and contacts' presence, and starts listening for DMs. Your account is
 remembered and auto-signs-in next time.
@@ -49,6 +50,25 @@ remembered and auto-signs-in next time.
 To grow your buddy list, use **Add a Contact** (paste an `npub`, NIP-05 or hex
 key), or **Share my contact** to copy your `npub` or an invite link. Opening
 someone's invite link (`…/?add=<npub>`) prompts you to add them in one click.
+
+### Moving your account between devices
+
+Your account *is* your secret key, so moving it to a new device just means
+carrying that key across. **Move account** (in the buddy list) opens one dialog
+with three ways to do it, all gated behind a single "show secret" so a glance
+can't leak it:
+
+- **📱 To my phone** — a QR code of your key. On the phone, open the app →
+  **Move or import an account** → **Scan a QR code**, point it at the screen,
+  and you're signed in. The phone's rear camera is used; nothing touches the
+  network (the QR is decoded entirely on-device).
+- **🔑 Secret key** — copy the `nsec…`, or **Save as file** for a backup.
+- **✍️ Recovery words** — a 24-word phrase that encodes the *exact* key bytes
+  (BIP-39 encoding of the raw secret, not NIP-06 derivation — so it round-trips
+  back to the same `nsec`). Write it down as an offline backup.
+
+Importing accepts any of the three forms (auto-detected) plus a raw hex key.
+Your `npub` is the only thing safe to share — the key, phrase and QR are not.
 
 > ⚠️ **Key storage.** Identities are stored **as plaintext `nsec` in
 > `localStorage`** — chosen for the frictionless "sign me in automatically" feel.

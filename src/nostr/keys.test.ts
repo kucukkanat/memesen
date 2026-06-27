@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'bun:test';
-import { AVATAR_KEYS, avatarFor, createKeyPair, npubOf, pubkeyFromInput, pubkeyFromNsec, shortNpub } from './keys';
+import { hexToBytes } from '@noble/hashes/utils.js';
+import * as nip19 from 'nostr-tools/nip19';
+import {
+  AVATAR_KEYS, avatarFor, createKeyPair, isRecoveryPhrase, npubOf,
+  nsecFromPhrase, phraseFromNsec, pubkeyFromInput, pubkeyFromNsec,
+  secretFromInput, shortNpub,
+} from './keys';
 
 describe('keys — generation and encoding', () => {
   it('mints a 64-hex pubkey with a matching nsec', () => {
@@ -25,6 +31,54 @@ describe('keys — identifier parsing', () => {
   it('returns null for garbage', () => {
     expect(pubkeyFromInput('hello world')).toBeNull();
     expect(pubkeyFromInput('npub1nope')).toBeNull();
+  });
+});
+
+describe('keys — recovery phrase', () => {
+  it('encodes a key as 24 words and round-trips back to the same nsec', () => {
+    const { nsec } = createKeyPair();
+    const phrase = phraseFromNsec(nsec);
+    expect(phrase.split(' ')).toHaveLength(24);
+    expect(isRecoveryPhrase(phrase)).toBe(true);
+    expect(nsecFromPhrase(phrase)).toBe(nsec);
+  });
+
+  it('tolerates messy casing and whitespace in a pasted phrase', () => {
+    const { nsec } = createKeyPair();
+    const phrase = phraseFromNsec(nsec);
+    const messy = `  ${phrase.toUpperCase().replace(/ /g, '\n  ')} `;
+    expect(nsecFromPhrase(messy)).toBe(nsec);
+  });
+
+  it('rejects a non-phrase / tampered phrase', () => {
+    expect(isRecoveryPhrase('hello world how are you today friend')).toBe(false);
+    const { nsec } = createKeyPair();
+    const bad = phraseFromNsec(nsec).replace(/^\w+/, 'zzzz');
+    expect(isRecoveryPhrase(bad)).toBe(false);
+  });
+});
+
+describe('keys — unified secret import', () => {
+  it('accepts an nsec, raw hex, and a recovery phrase as the same account', () => {
+    const { pubkey, nsec } = createKeyPair();
+    const hex = Buffer.from(nip19.decode(nsec).data as Uint8Array).toString('hex');
+    const phrase = phraseFromNsec(nsec);
+    for (const input of [nsec, ` ${nsec} `, hex, hex.toUpperCase(), phrase]) {
+      const parsed = secretFromInput(input);
+      expect(parsed?.pubkey).toBe(pubkey);
+      expect(parsed?.nsec).toBe(nsec);
+    }
+  });
+
+  it('round-trips raw hex through nsec encoding', () => {
+    const { nsec } = createKeyPair();
+    const hex = Buffer.from(nip19.decode(nsec).data as Uint8Array).toString('hex');
+    expect(secretFromInput(hex)?.nsec).toBe(nip19.nsecEncode(hexToBytes(hex)));
+  });
+
+  it('returns null for unparseable input', () => {
+    expect(secretFromInput('definitely not a key')).toBeNull();
+    expect(secretFromInput('npub1' + 'q'.repeat(58))).toBeNull();
   });
 });
 
