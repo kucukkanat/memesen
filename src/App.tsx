@@ -232,6 +232,27 @@ export const App = () => {
     };
   }, [state.screen, nostr]);
 
+  // A restored session (refresh while already signed in) reaches the desktop
+  // via bootState(), never through doSignIn(), so resumeAudio() is never called:
+  // the AudioContext stays locked and the real sound samples are never fetched,
+  // making every event fall back to the synth voices. Unlock + load on the first
+  // user gesture (also required by the browser's autoplay policy), then detach.
+  // resumeAudio() is idempotent, so the fresh-sign-in path double-calling is fine.
+  useEffect(() => {
+    if (state.screen !== 'desktop') return;
+    const unlock = (): void => {
+      resumeAudio();
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+    window.addEventListener('pointerdown', unlock);
+    window.addEventListener('keydown', unlock);
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, [state.screen]);
+
   // Flash the browser tab title while any conversation has an unread message.
   useEffect(() => {
     const flashing = state.chats.find((c) => c.flashing);

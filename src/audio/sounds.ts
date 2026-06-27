@@ -17,16 +17,20 @@ export type SoundName = 'message' | 'nudge' | 'online' | 'offline' | 'signin' | 
 
 type OscType = OscillatorNode['type'];
 
-// Which SoundName maps to which real Messenger sample. `offline` has no original
-// sample, so it always uses the synthesized fallback below.
+// Which SoundName maps to which real Messenger sample. `offline` and `send` have
+// no fitting sample, so they always use the synthesized fallback below.
+//
+// Note: `outgoing.mp3` is the ~3s MSN sign-in jingle (a full rising melody), not
+// a per-message blip — so it belongs on `signin`, the moment *you* connect. It is
+// deliberately NOT used for `send`: the original Messenger was silent on send, so
+// `send` uses the tiny synth tick instead of a 3-second jingle on every message.
 const FILES: Partial<Record<SoundName, string>> = {
   message: typeUrl, // the iconic new-message "ba-ding"
   nudge: nudgeUrl,
-  online: onlineUrl, // contact signs in
+  online: onlineUrl, // a contact signs in
   alert: newalertUrl,
-  signin: newalertUrl, // reuse the alert chime for "you're connected"
+  signin: outgoingUrl, // the real MSN sign-in jingle, "you're connected"
   email: newemailUrl,
-  send: outgoingUrl,
 };
 
 // Lazily-created, shared across every sound. Kept module-level so we only ever
@@ -36,6 +40,20 @@ let master: GainNode | null = null;
 let muted = false;
 const samples = new Map<SoundName, AudioBuffer>();
 let loadStarted = false;
+
+// Sounds requested while their real sample was still decoding. We hold the
+// request (keyed by the time it was made) instead of substituting the synth
+// voice, then play the authentic sample the moment it finishes decoding. This
+// is what makes the sign-in jingle actually sound: `doSignIn` fires
+// playSound('signin') on the very tick resumeAudio() kicks off decoding, so the
+// sample is never ready in time on a cold start.
+const pending = new Map<SoundName, number>();
+const MAX_DEFER_MS = 1500; // drop a deferred sample if it decodes later than this
+
+// Samples whose fetch/decode failed. We must track these so a later request
+// doesn't defer forever waiting on a load that will never arrive — it uses the
+// synth fallback instead.
+const failed = new Set<SoundName>();
 
 type AudioWindow = Window & {
   AudioContext?: typeof AudioContext;
@@ -227,8 +245,18 @@ const loadSamples = (c: AudioContext): void => {
       .then((data) => c.decodeAudioData(data))
       .then((buf) => {
         samples.set(name, buf);
+        const requestedAt = pending.get(name);
+        if (requestedAt === undefined) return;
+        pending.delete(name);
+        if (!muted && master && Date.now() - requestedAt <= MAX_DEFER_MS) playSample(c, master, buf);
       })
-      .catch(() => undefined);
+      .catch((err: unknown) => {
+        // Don't strand a deferred request on a load that will never arrive:
+        // mark it failed and play the synth fallback so the event still sounds.
+        failed.add(name);
+        console.warn(`[sounds] failed to load sample "${name}":`, err);
+        if (pending.delete(name) && !muted && master) synth[name](c, master);
+      });
   }
 };
 
@@ -249,8 +277,15 @@ export const playSound = (name: SoundName): void => {
   if (c.state === 'suspended') void c.resume().catch(() => undefined);
   try {
     const buf = samples.get(name);
-    if (buf) playSample(c, master, buf);
-    else synth[name](c, master);
+    if (buf) {
+      playSample(c, master, buf);
+    } else if (FILES[name] && loadStarted && !failed.has(name)) {
+      // A real sample exists but is still decoding — wait for it (loadSamples
+      // will play it on arrival) rather than emit a less-authentic synth voice.
+      pending.set(name, Date.now());
+    } else {
+      synth[name](c, master);
+    }
   } catch {
     // Audio must never surface to the UI.
   }
