@@ -84,6 +84,7 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
           at: message.createdAt,
           time: formatTime(message.createdAt * 1000),
           payload: message.payload,
+          live: message.live,
         });
         // Only toast for genuinely new messages — `live` is false for the
         // stored backlog the relay replays on every (re)connect.

@@ -2,6 +2,7 @@ import type { StatusKey } from '../state/types';
 import { Butterfly, StatusIcon } from '../assets/icons';
 import { Avatar } from '../assets/avatars';
 import { RichText } from '../assets/emoticons';
+import { useIsMobile, MOBILE_NAV_H } from '../hooks/useIsMobile';
 
 export interface Toast {
   readonly id: number;
@@ -17,12 +18,15 @@ export interface ToastStackProps {
 }
 
 /** The MSN alert that slides up from the bottom-right corner of the screen. */
-export const ToastStack = ({ toasts, onDismiss }: ToastStackProps) => (
+export const ToastStack = ({ toasts, onDismiss }: ToastStackProps) => {
+  const mobile = useIsMobile();
+  return (
   <div
     style={{
       position: 'fixed',
       right: 8,
-      bottom: 42,
+      // Sit clear of the bottom nav on phones, the taskbar on desktop.
+      bottom: mobile ? `calc(${MOBILE_NAV_H}px + var(--safe-bottom) + 8px)` : 42,
       display: 'flex',
       flexDirection: 'column-reverse',
       gap: 6,
@@ -86,4 +90,5 @@ export const ToastStack = ({ toasts, onDismiss }: ToastStackProps) => (
       </div>
     ))}
   </div>
-);
+  );
+};

@@ -1,12 +1,12 @@
 {
   "name": "@memesen/app",
-  "version": "0.1.0",
+  "version": "3.0.0",
   "private": true,
   "type": "module",
   "description": "MSN Messenger over Nostr — a faithful early-2000s instant-messenger UI on real encrypted Nostr DMs, identities and relays (React + Bun).",
   "scripts": {
     "dev": "bun --hot ./src/index.html",
-    "build": "bun build ./src/index.html --outdir dist --minify",
+    "build": "bun build ./src/index.html --outdir dist --minify && cp -R public/. dist/",
     "start": "bun ./src/index.html",
     "typecheck": "tsc --noEmit",
     "test": "bun test src",

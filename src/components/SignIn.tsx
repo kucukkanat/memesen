@@ -6,6 +6,7 @@ import { CLOSE_BTN, GREEN_BTN, TITLE_BAR, TITLE_TEXT } from '../ui/chrome';
 import { Butterfly, StatusIcon } from '../assets/icons';
 import { Avatar } from '../assets/avatars';
 import { avatarFor, shortNpub } from '../nostr/keys';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const FIELD: CSSProperties = {
   width: '100%',
@@ -36,10 +37,13 @@ const labelFor = (i: Identity): string => i.name || shortNpub(i.pubkey);
 
 export const SignIn = (p: SignInProps) => {
   const [selected, setSelected] = useState<string>(p.identities[0]?.pubkey ?? '');
-  const dragged = p.left != null && p.top != null;
+  const mobile = useIsMobile();
+  const dragged = !mobile && p.left != null && p.top != null;
+  // On phones the window can't be dragged, so it's always centered and sized to
+  // the viewport (it scrolls if the account list is long). Desktop is unchanged.
   const placement: CSSProperties = dragged
     ? { top: p.top ?? 0, left: p.left ?? 0 }
-    : { top: '46%', left: '50%', transform: 'translate(-50%,-50%)' };
+    : { top: '50%', left: '50%', transform: 'translate(-50%,-50%)' };
 
   // Keep the selection valid as identities are added/removed.
   const active = p.identities.some((i) => i.pubkey === selected) ? selected : (p.identities[0]?.pubkey ?? '');
@@ -49,11 +53,19 @@ export const SignIn = (p: SignInProps) => {
   return (
     <div
       data-win="signin"
-      style={{ position: 'absolute', ...placement, width: 296, boxShadow: '0 10px 34px rgba(0,0,0,.45)', zIndex: 10 }}
+      style={{
+        position: mobile ? 'fixed' : 'absolute',
+        ...placement,
+        width: mobile ? 'min(340px, calc(100vw - 20px))' : 296,
+        maxHeight: mobile ? 'calc(100dvh - 20px)' : undefined,
+        overflowY: mobile ? 'auto' : undefined,
+        boxShadow: '0 10px 34px rgba(0,0,0,.45)',
+        zIndex: 10,
+      }}
     >
-      <div onMouseDown={p.onDrag} style={{ ...TITLE_BAR, height: 25, borderRadius: '7px 7px 0 0', cursor: 'move' }}>
+      <div onMouseDown={mobile ? undefined : p.onDrag} style={{ ...TITLE_BAR, height: 25, borderRadius: '7px 7px 0 0', cursor: mobile ? 'default' : 'move' }}>
         <span style={TITLE_TEXT}>.NET Messenger Service</span>
-        <div style={{ ...CLOSE_BTN, width: 21, height: 18 }}>✕</div>
+        {!mobile && <div style={{ ...CLOSE_BTN, width: 21, height: 18 }}>✕</div>}
       </div>
       <div style={{ background: 'linear-gradient(180deg,#cfe2fb 0%,#ffffff 34%,#ffffff 100%)', border: '1px solid #06387c', borderTop: 'none', paddingBottom: 16 }}>
         <div style={{ background: 'linear-gradient(180deg,#aacef5,#dcecfb)', padding: 16, display: 'flex', alignItems: 'center', gap: 11, borderBottom: '1px solid #b0c6e6' }}>

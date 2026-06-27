@@ -3,6 +3,7 @@ import type { StatusKey } from '../state/types';
 import { formatClock } from '../state/helpers';
 import { Butterfly, StatusIcon } from '../assets/icons';
 import { RichText } from '../assets/emoticons';
+import { useIsMobile, MOBILE_NAV_H } from '../hooks/useIsMobile';
 
 export interface TaskbarWindow {
   readonly id: string;
@@ -17,7 +18,12 @@ export interface TaskbarProps {
   readonly onToggleMute: () => void;
   readonly windows: readonly TaskbarWindow[];
   readonly onFocusWindow: (id: string) => void;
+  /** Mobile only: which window the bottom-nav should mark as current. */
+  readonly activeId?: string | undefined;
 }
+
+/** Sentinel id for the buddy-list "home" entry (mirrors App). */
+const BUDDY_ID = '__buddy__';
 
 const WIN_BTN: CSSProperties = {
   display: 'flex',
@@ -34,7 +40,86 @@ const WIN_BTN: CSSProperties = {
   overflow: 'hidden',
 };
 
-export const Taskbar = ({ now, muted, onToggleMute, windows, onFocusWindow }: TaskbarProps) => (
+export const Taskbar = (props: TaskbarProps) => {
+  const mobile = useIsMobile();
+  return mobile ? <MobileNav {...props} /> : <DesktopTaskbar {...props} />;
+};
+
+/**
+ * The mobile bottom navigation: the taskbar reimagined as touch tabs. The buddy
+ * list becomes a "Contacts" home button; each open conversation is a tab that
+ * flashes on a new message. No "start" button, no clock — the phone's own
+ * status bar already shows the time.
+ */
+const MobileNav = ({ muted, onToggleMute, windows, onFocusWindow, activeId }: TaskbarProps) => (
+  <div
+    style={{
+      position: 'fixed',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      minHeight: MOBILE_NAV_H,
+      paddingBottom: 'var(--safe-bottom)',
+      background: 'linear-gradient(180deg,#3168d8 0%,#1d4fc4 9%,#2358cf 90%,#1840a8 100%)',
+      display: 'flex',
+      alignItems: 'stretch',
+      zIndex: 30,
+      boxShadow: '0 -1px 6px rgba(0,0,0,.35)',
+    }}
+  >
+    <div className="msn-scroll" style={{ display: 'flex', alignItems: 'stretch', gap: 6, padding: '5px 6px', flex: 1, overflowX: 'auto' }}>
+      {windows.map((w) => {
+        const active = w.id === activeId;
+        const home = w.id === BUDDY_ID;
+        return (
+          <div
+            key={w.id}
+            className="msn-taskbtn"
+            onClick={() => onFocusWindow(w.id)}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 2,
+              minWidth: 60,
+              maxWidth: 96,
+              padding: '0 10px',
+              borderRadius: 7,
+              color: '#fff',
+              fontSize: 10,
+              cursor: 'pointer',
+              textShadow: '1px 1px 1px rgba(0,0,0,.35)',
+              background: w.flashing
+                ? 'linear-gradient(180deg,#ffb347,#f08000)'
+                : active
+                  ? 'linear-gradient(180deg,#6aa3ec,#3a73d4)'
+                  : 'transparent',
+              border: active || w.flashing ? '1px solid rgba(255,255,255,.55)' : '1px solid transparent',
+              animation: w.flashing ? 'msn-taskflash 1s steps(1) infinite' : 'none',
+            }}
+          >
+            {home ? <Butterfly size={18} /> : <StatusIcon status={w.status} size={16} />}
+            <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {home ? 'Contacts' : <RichText text={w.label} size={12} />}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+
+    <div
+      className="msn-link"
+      title={muted ? 'Sounds off — tap to unmute' : 'Sounds on — tap to mute'}
+      onClick={onToggleMute}
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 50, fontSize: 20, color: '#fff', cursor: 'pointer', borderLeft: '1px solid rgba(255,255,255,.18)' }}
+    >
+      {muted ? '🔇' : '🔊'}
+    </div>
+  </div>
+);
+
+const DesktopTaskbar = ({ now, muted, onToggleMute, windows, onFocusWindow }: TaskbarProps) => (
   <div
     style={{
       position: 'fixed',

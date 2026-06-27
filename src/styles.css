@@ -18,6 +18,48 @@ body,
   font-size: 11px;
 }
 
+/* --- Mobile / touch / PWA -------------------------------------------------- */
+/* Everything here is phone-only (the desktop layout above is untouched).
+   `100dvh` tracks the *visible* viewport as iOS Safari's chrome slides away,
+   so the app never hides behind it. `--safe-*` expose the notch insets so the
+   chrome (app bars, bottom nav) can pad themselves clear of it. */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (max-width: 760px) {
+  html,
+  body,
+  #root {
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Kill the grey tap flash and let buttons feel native. */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* iOS zooms the page when a focused field's text is < 16px. Bump every
+     editable control to 16px on phones to stop that jarring auto-zoom, while
+     the desktop keeps its authentic tiny 11px chrome. */
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  /* Touch-sized scrollbars are pointless on phones — use the slim native one. */
+  .msn-scroll::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+}
+
 @keyframes msn-shake {
   0%, 100% { transform: translate(0, 0); }
   12% { transform: translate(-7px, 4px); }

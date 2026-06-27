@@ -57,6 +57,27 @@ someone's invite link (`…/?add=<npub>`) prompts you to add them in one click.
 > NIP-49 passphrase encryption or NIP-07 extension signing is a localized change
 > in `src/nostr/`.)
 
+## Mobile & PWA
+
+The same app is touch-first on phones. Above 760px you get the authentic
+desktop experience — draggable, resizable, overlapping windows — untouched. At
+or below 760px (`useIsMobile`) the window manager is replaced rather than shrunk:
+
+- **No floating windows.** The buddy list becomes a full-screen home view; a
+  conversation opens as a full-screen page with a **‹ back** button; the taskbar
+  becomes a touch **bottom nav** that tabs between Contacts and open chats. Only
+  one screen shows at a time (`App` tracks the foreground chat).
+- **Dialogs adapt.** `Modal` (and so every dialog built on it) becomes a
+  full-width, height-capped, scrollable card — no per-dialog code changes.
+- **Touch niceties.** Bigger tap targets, 16px inputs (no iOS focus-zoom),
+  `100dvh` sizing, and `env(safe-area-inset-*)` padding for notches.
+
+It's an **installable PWA**: a web manifest, maskable icons and a service worker
+(precaches the shell, runtime-caches hashed assets) make it "Add to Home Screen"
+on iOS and "Install app" on Android, launching standalone and working offline.
+PWA assets live in `public/` and are copied into `dist/` by `bun run build`; all
+paths are relative so it works under the GitHub Pages project subpath.
+
 ## Other commands
 
 ```bash

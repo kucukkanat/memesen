@@ -8,6 +8,7 @@ import { resolveContact } from './state/view';
 import { playSound, resumeAudio, setMuted } from './audio/sounds';
 import { useDrag } from './hooks/useDrag';
 import { useResize } from './hooks/useResize';
+import { useIsMobile } from './hooks/useIsMobile';
 import { useNostr, type NostrSink } from './hooks/useNostr';
 import { loadActive, loadIdentities, loadRelays } from './nostr/identity';
 import { normaliseRelay } from './nostr/relays';
@@ -71,6 +72,12 @@ export const App = () => {
   const [state, dispatch] = useReducer(reducer, null, bootState);
   const drag = useDrag();
   const resize = useResize();
+  const mobile = useIsMobile();
+
+  // Mobile is "one screen at a time": the buddy list, or a single full-screen
+  // conversation. `activeChat` is which conversation is on top (null = list).
+  // Desktop ignores this entirely and keeps every window floating at once.
+  const [activeChat, setActiveChat] = useState<string | null>(null);
 
   // Latest-state ref so deferred timers and network callbacks read current state.
   const stateRef = useRef(state);
@@ -402,13 +409,31 @@ export const App = () => {
     total: state.relays.length,
   };
 
+  // Open a conversation and (on mobile) bring it to the foreground.
+  const openChat = (pubkey: string): void => {
+    dispatch({ type: 'OPEN_CHAT', pubkey });
+    setActiveChat(pubkey);
+  };
+  // Taskbar / bottom-nav tap: `__buddy__` returns to the list, anything else
+  // focuses (mobile: shows) that conversation.
+  const focusWindow = (id: string): void => {
+    if (id === '__buddy__') {
+      setActiveChat(null);
+      return;
+    }
+    dispatch({ type: 'FOCUS_CHAT', pubkey: id });
+    setActiveChat(id);
+  };
+  // Mobile shows just the foreground conversation; desktop floats them all.
+  const visibleChats = mobile ? state.chats.filter((c) => c.pubkey === activeChat) : state.chats;
+
   return (
     <div
       style={{
         position: 'relative',
         width: '100%',
         height: '100%',
-        minHeight: 780,
+        minHeight: mobile ? undefined : 780,
         overflow: 'hidden',
         background: 'linear-gradient(170deg,#2f6fd0 0%,#5a9be0 28%,#9fd06a 52%,#79b948 72%,#5f9a36 100%)',
       }}
@@ -417,6 +442,7 @@ export const App = () => {
         now={state.now}
         muted={muted}
         onToggleMute={toggleMute}
+        activeId={state.screen === 'desktop' ? activeChat ?? '__buddy__' : undefined}
         windows={
           state.screen === 'desktop'
             ? [
@@ -428,9 +454,7 @@ export const App = () => {
               ]
             : []
         }
-        onFocusWindow={(id) => {
-          if (id !== '__buddy__') dispatch({ type: 'FOCUS_CHAT', pubkey: id });
-        }}
+        onFocusWindow={focusWindow}
       />
 
       {state.screen === 'signin' && (
@@ -462,7 +486,7 @@ export const App = () => {
             onEditName={editName}
             onChangePicture={() => dispatch({ type: 'TOGGLE_CHANGE_PICTURE' })}
             onToggleGroup={(group) => dispatch({ type: 'TOGGLE_GROUP', group })}
-            onOpenChat={(pubkey) => dispatch({ type: 'OPEN_CHAT', pubkey })}
+            onOpenChat={openChat}
             onRemoveContact={setPendingRemoval}
             onRenameContact={renameContact}
             onAddContact={() => dispatch({ type: 'TOGGLE_ADD_CONTACT' })}
@@ -470,7 +494,7 @@ export const App = () => {
             onOpenRelays={() => dispatch({ type: 'TOGGLE_RELAY_MANAGER' })}
           />
 
-          {state.chats.map((chat) => (
+          {visibleChats.map((chat) => (
             <ChatWindow
               key={chat.pubkey}
               chat={chat}
@@ -490,7 +514,8 @@ export const App = () => {
                   dispatch({ type: 'RESIZE_CHAT', pubkey: chat.pubkey, width, height }),
                 );
               }}
-              onClose={() => dispatch({ type: 'CLOSE_CHAT', pubkey: chat.pubkey })}
+              onClose={() => { dispatch({ type: 'CLOSE_CHAT', pubkey: chat.pubkey }); setActiveChat(null); }}
+              onBack={() => setActiveChat(null)}
               onDraft={(draft) => dispatch({ type: 'SET_DRAFT', pubkey: chat.pubkey, draft })}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {

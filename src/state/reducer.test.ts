@@ -15,7 +15,7 @@ const chatOf = (s: AppState, pubkey: string): Chat | undefined => s.chats.find((
 const signedIn = (): AppState => reducer(base(), { type: 'SIGN_IN', pubkey: ME, name: 'me', avatar: 'beach' });
 
 const text = (id: string, partner: string, body: string, mine = false, at = 1000): Action => ({
-  type: 'MESSAGE_RECEIVED', id, partner, mine, at, time: '(9:07 PM)', payload: { kind: 'text', body },
+  type: 'MESSAGE_RECEIVED', id, partner, mine, at, time: '(9:07 PM)', payload: { kind: 'text', body }, live: true,
 });
 
 describe('reducer — purity', () => {
@@ -241,16 +241,34 @@ describe('reducer — messaging', () => {
   });
 
   it('renders an inbound nudge as a system line and shakes the window', () => {
-    const s = reducer(signedIn(), { type: 'MESSAGE_RECEIVED', id: 'n1', partner: ALICE, mine: false, at: 1000, time: '(9:07 PM)', payload: { kind: 'nudge', body: '' } });
+    const s = reducer(signedIn(), { type: 'MESSAGE_RECEIVED', id: 'n1', partner: ALICE, mine: false, at: 1000, time: '(9:07 PM)', payload: { kind: 'nudge', body: '' }, live: true });
     const c = chatOf(s, ALICE);
     expect(c?.shake).toBe(true);
     expect(c?.messages.at(-1)).toMatchObject({ kind: 'system' });
   });
 
   it('renders an inbound wink and arms the overlay glyph', () => {
-    const s = reducer(signedIn(), { type: 'MESSAGE_RECEIVED', id: 'w1', partner: ALICE, mine: false, at: 1000, time: '(9:07 PM)', payload: { kind: 'wink', body: '🎉' } });
+    const s = reducer(signedIn(), { type: 'MESSAGE_RECEIVED', id: 'w1', partner: ALICE, mine: false, at: 1000, time: '(9:07 PM)', payload: { kind: 'wink', body: '🎉' }, live: true });
     const c = chatOf(s, ALICE);
     expect(c?.winkOn).toBe(true);
+    expect(c?.winkGlyph).toBe('🎉');
+  });
+
+  // Regression: a nudge/wink replayed from the relay backlog (live=false) must
+  // log its system line but NOT arm the shake/wink flag. Those flags are only
+  // reset by a live-path timer, so latching them on backlog leaves them stuck
+  // `true` and the animation replays on every window mount (e.g. taskbar tap).
+  it('does not shake the window for a backlog nudge (live=false)', () => {
+    const s = reducer(signedIn(), { type: 'MESSAGE_RECEIVED', id: 'n2', partner: ALICE, mine: false, at: 1000, time: '(9:07 PM)', payload: { kind: 'nudge', body: '' }, live: false });
+    const c = chatOf(s, ALICE);
+    expect(c?.shake).toBe(false);
+    expect(c?.messages.at(-1)).toMatchObject({ kind: 'system' });
+  });
+
+  it('does not arm the wink overlay for a backlog wink (live=false)', () => {
+    const s = reducer(signedIn(), { type: 'MESSAGE_RECEIVED', id: 'w2', partner: ALICE, mine: false, at: 1000, time: '(9:07 PM)', payload: { kind: 'wink', body: '🎉' }, live: false });
+    const c = chatOf(s, ALICE);
+    expect(c?.winkOn).toBe(false);
     expect(c?.winkGlyph).toBe('🎉');
   });
 });

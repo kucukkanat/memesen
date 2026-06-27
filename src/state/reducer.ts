@@ -84,11 +84,18 @@ interface ApplyArgs {
   readonly payload: IncomingPayload;
   /** true => from the network (may flash a background window); false => our own optimistic send. */
   readonly inbound: boolean;
+  /**
+   * true => a real-time event the user should feel (shake/wink animations,
+   * sounds). false => stored backlog the relay replays on every (re)connect.
+   * Effect flags must stay off for backlog, else they latch `true` forever
+   * (their reset timer only runs on the live path) and replay on every mount.
+   */
+  readonly live: boolean;
 }
 
 /** Fold one decrypted DM into the relevant chat, opening it if necessary. */
 const applyMessage = (state: AppState, args: ApplyArgs): AppState => {
-  const { pubkey, id, mine, at, time, payload, inbound } = args;
+  const { pubkey, id, mine, at, time, payload, inbound, live } = args;
   const existing = state.chats.find((c) => c.pubkey === pubkey);
   if (existing?.seen.includes(id)) return state; // duplicate relay delivery
 
@@ -105,11 +112,12 @@ const applyMessage = (state: AppState, args: ApplyArgs): AppState => {
       break;
     case 'nudge':
       chat = append(chat, { kind: 'system', text: mine ? 'You have just sent a Nudge.' : `${name} has just sent you a Nudge.`, at });
-      chat = { ...chat, shake: true };
+      if (live) chat = { ...chat, shake: true };
       break;
     case 'wink':
       chat = append(chat, { kind: 'system', text: mine ? 'You have sent a Wink.' : `${name} sent you a Wink.`, at });
-      chat = { ...chat, winkOn: true, winkGlyph: payload.body || chat.winkGlyph };
+      chat = { ...chat, winkGlyph: payload.body || chat.winkGlyph };
+      if (live) chat = { ...chat, winkOn: true };
       break;
   }
   // Flash the taskbar only for inbound messages to an already-open background window.
@@ -279,9 +287,9 @@ export const reducer = (state: AppState, action: Action): AppState => {
       return { ...state, chats: mapChat(state, action.pubkey, (c) => ({ ...c, winkOn: action.on, winkGlyph: action.glyph ?? c.winkGlyph })) };
 
     case 'MESSAGE_SENT':
-      return applyMessage(state, { pubkey: action.pubkey, id: action.id, mine: true, at: action.at, time: action.time, payload: action.payload, inbound: false });
+      return applyMessage(state, { pubkey: action.pubkey, id: action.id, mine: true, at: action.at, time: action.time, payload: action.payload, inbound: false, live: true });
     case 'MESSAGE_RECEIVED':
-      return applyMessage(state, { pubkey: action.partner, id: action.id, mine: action.mine, at: action.at, time: action.time, payload: action.payload, inbound: true });
+      return applyMessage(state, { pubkey: action.partner, id: action.id, mine: action.mine, at: action.at, time: action.time, payload: action.payload, inbound: true, live: action.live });
     case 'APPEND_SYSTEM':
       return { ...state, chats: mapChat(state, action.pubkey, (c) => append(c, { kind: 'system', text: action.text, at: Math.floor(state.now / 1000) })) };
 

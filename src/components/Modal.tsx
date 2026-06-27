@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { CLOSE_BTN, SIDE_BORDERS, TITLE_BAR, TITLE_TEXT } from '../ui/chrome';
 import { Butterfly } from '../assets/icons';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 // The dimmed backdrop sits above *every* window. Chat windows use an
 // incrementing z (starting ~30) that would otherwise cover a fixed-z dialog,
@@ -44,23 +45,41 @@ export interface ModalProps {
  * optional footer, floated over a dimming backdrop that guarantees it renders
  * on top of every other window. All app dialogs are built on this.
  */
-export const Modal = (p: ModalProps) => (
-  <div
-    style={BACKDROP}
-    onMouseDown={(e) => {
-      if (p.dismissOnBackdrop && e.target === e.currentTarget) p.onClose();
-    }}
-  >
-    <div style={{ width: p.width ?? 340, boxShadow: '0 12px 38px rgba(0,0,0,.5)' }}>
-      <div style={TITLE_BAR}>
-        <span style={{ marginRight: 5, display: 'flex' }}><Butterfly size={15} /></span>
-        <span style={TITLE_TEXT}>{p.title}</span>
-        <div onClick={p.onClose} style={{ ...CLOSE_BTN, width: 19, height: 17, fontSize: 10 }}>✕</div>
+export const Modal = (p: ModalProps) => {
+  const mobile = useIsMobile();
+
+  // On phones the dialog can't float at a fixed pixel width: it grows to (nearly)
+  // the full width, caps its height to the visible viewport and lets the body
+  // scroll, so even a tall form (Display Picture, Connection) stays reachable
+  // with the footer buttons pinned. The desktop dialog is unchanged.
+  const backdrop: CSSProperties = mobile
+    ? { ...BACKDROP, padding: 'max(10px, var(--safe-top)) 10px max(10px, var(--safe-bottom))' }
+    : BACKDROP;
+  const card: CSSProperties = mobile
+    ? { width: '100%', maxWidth: 440, maxHeight: '100%', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 38px rgba(0,0,0,.5)' }
+    : { width: p.width ?? 340, boxShadow: '0 12px 38px rgba(0,0,0,.5)' };
+  const body: CSSProperties = mobile
+    ? { ...SIDE_BORDERS, background: '#fff', borderBottom: '1px solid #06387c', overflowY: 'auto', flex: 1, minHeight: 0 }
+    : { ...SIDE_BORDERS, background: '#fff', borderBottom: '1px solid #06387c' };
+
+  return (
+    <div
+      style={backdrop}
+      onMouseDown={(e) => {
+        if (p.dismissOnBackdrop && e.target === e.currentTarget) p.onClose();
+      }}
+    >
+      <div style={card}>
+        <div style={{ ...TITLE_BAR, flexShrink: 0 }}>
+          <span style={{ marginRight: 5, display: 'flex' }}><Butterfly size={15} /></span>
+          <span style={TITLE_TEXT}>{p.title}</span>
+          <div onClick={p.onClose} style={{ ...CLOSE_BTN, width: mobile ? 26 : 19, height: mobile ? 22 : 17, fontSize: mobile ? 12 : 10 }}>✕</div>
+        </div>
+
+        <div style={body}>{p.children}</div>
+
+        {p.footer !== undefined && <div style={{ ...FOOTER_BAR, flexShrink: 0 }}>{p.footer}</div>}
       </div>
-
-      <div style={{ ...SIDE_BORDERS, background: '#fff', borderBottom: '1px solid #06387c' }}>{p.children}</div>
-
-      {p.footer !== undefined && <div style={FOOTER_BAR}>{p.footer}</div>}
     </div>
-  </div>
-);
+  );
+};

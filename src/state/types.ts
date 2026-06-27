@@ -176,6 +176,6 @@ export type Action =
   | { type: 'SET_WINK'; pubkey: string; on: boolean; glyph?: string }
   // messaging
   | { type: 'MESSAGE_SENT'; pubkey: string; id: string; at: number; time: string; payload: IncomingPayload }
-  | { type: 'MESSAGE_RECEIVED'; id: string; partner: string; mine: boolean; at: number; time: string; payload: IncomingPayload }
+  | { type: 'MESSAGE_RECEIVED'; id: string; partner: string; mine: boolean; at: number; time: string; payload: IncomingPayload; live: boolean }
   | { type: 'APPEND_SYSTEM'; pubkey: string; text: string }
   | { type: 'TICK'; now: number };

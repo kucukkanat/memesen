@@ -8,6 +8,7 @@ import type { StatusKey } from '../state/types';
 import { Butterfly, StatusIcon } from '../assets/icons';
 import { Avatar } from '../assets/avatars';
 import { Emoticon, EMOTICON_LIST, RichText } from '../assets/emoticons';
+import { useIsMobile, MOBILE_NAV_H } from '../hooks/useIsMobile';
 import nudgeIcon from '../assets/msn/toolbar/nudge.png';
 import winkIcon from '../assets/msn/toolbar/wink.png';
 import inviteIcon from '../assets/msn/toolbar/invite.png';
@@ -43,6 +44,8 @@ export interface ChatWindowProps {
   readonly onFocus: () => void;
   readonly onResize: (e: ReactMouseEvent) => void;
   readonly onClose: () => void;
+  /** Mobile only: step back to the buddy list without closing the conversation. */
+  readonly onBack?: () => void;
   readonly onDraft: (v: string) => void;
   readonly onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   readonly onSend: () => void;
@@ -65,6 +68,7 @@ const TBAR_ICON: CSSProperties = { width: 16, height: 16, verticalAlign: 'middle
 
 export const ChatWindow = (p: ChatWindowProps) => {
   const { chat, contact, inContacts } = p;
+  const mobile = useIsMobile();
   const info = statusOf(contact.status);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -85,23 +89,34 @@ export const ChatWindow = (p: ChatWindowProps) => {
       data-win="chat"
       onMouseDown={p.onFocus}
       style={{
-        position: 'absolute',
+        // On phones the conversation is a full-screen view above the bottom nav
+        // — no dragging, no resize, no stacking maths. Desktop stays a floating,
+        // draggable, resizable window exactly as before.
+        position: mobile ? 'fixed' : 'absolute',
         boxShadow: '0 8px 30px rgba(0,0,0,.45)',
         zIndex: chat.z,
-        top: chat.top,
-        left: chat.left,
-        width: chat.width,
-        height: chat.height,
+        top: mobile ? 0 : chat.top,
+        left: mobile ? 0 : chat.left,
+        right: mobile ? 0 : undefined,
+        bottom: mobile ? `calc(${MOBILE_NAV_H}px + var(--safe-bottom))` : undefined,
+        width: mobile ? 'auto' : chat.width,
+        height: mobile ? 'auto' : chat.height,
         display: 'flex',
         flexDirection: 'column',
         animation: chat.shake ? 'msn-shake 0.8s ease' : 'none',
       }}
     >
       {/* title bar */}
-      <div onMouseDown={p.onTitleDrag} style={{ ...TITLE_BAR, flexShrink: 0, cursor: 'move' }}>
+      <div
+        onMouseDown={mobile ? undefined : p.onTitleDrag}
+        style={{ ...TITLE_BAR, flexShrink: 0, cursor: mobile ? 'default' : 'move', height: mobile ? 'auto' : 24, paddingTop: mobile ? 'calc(4px + var(--safe-top))' : undefined, paddingBottom: mobile ? 4 : undefined }}
+      >
+        {mobile && p.onBack && (
+          <div onClick={p.onBack} title="Back to contacts" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 22, marginRight: 2, color: '#fff', fontSize: 18, cursor: 'pointer' }}>‹</div>
+        )}
         <span style={{ marginRight: 5, display: 'flex' }}><Butterfly size={15} /></span>
         <span style={TITLE_TEXT}><RichText text={contact.name} size={15} /> - Conversation</span>
-        <div onClick={p.onClose} style={{ ...CLOSE_BTN, width: 19, height: 17, fontSize: 10 }}>✕</div>
+        <div onClick={p.onClose} style={{ ...CLOSE_BTN, width: mobile ? 26 : 19, height: mobile ? 22 : 17, fontSize: mobile ? 12 : 10 }}>✕</div>
       </div>
 
       {/* menu */}
@@ -291,25 +306,27 @@ export const ChatWindow = (p: ChatWindowProps) => {
       {/* footer */}
       <div style={{ position: 'relative', flexShrink: 0, background: 'linear-gradient(180deg,#f4f8fd,#dde8f5)', border: '1px solid #06387c', borderTop: 'none', borderRadius: '0 0 4px 4px', padding: '4px 9px', color: '#7a8aa0', fontSize: 10 }}>
         {contact.status === 'offline' ? 'This contact is offline. Your message will arrive when they reconnect.' : 'This conversation is private and encrypted'}
-        {/* resize grip */}
-        <div
-          onMouseDown={p.onResize}
-          title="Drag to resize"
-          style={{
-            position: 'absolute',
-            right: 1,
-            bottom: 0,
-            width: 16,
-            height: 16,
-            cursor: 'nwse-resize',
-            color: '#7a93b8',
-            fontSize: 12,
-            lineHeight: '14px',
-            textAlign: 'right',
-          }}
-        >
-          ◢
-        </div>
+        {/* resize grip — desktop only; the mobile view is full-screen */}
+        {!mobile && (
+          <div
+            onMouseDown={p.onResize}
+            title="Drag to resize"
+            style={{
+              position: 'absolute',
+              right: 1,
+              bottom: 0,
+              width: 16,
+              height: 16,
+              cursor: 'nwse-resize',
+              color: '#7a93b8',
+              fontSize: 12,
+              lineHeight: '14px',
+              textAlign: 'right',
+            }}
+          >
+            ◢
+          </div>
+        )}
       </div>
 
       {/* wink overlay */}
