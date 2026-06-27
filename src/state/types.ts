@@ -78,6 +78,14 @@ export interface Chat {
   readonly shake: boolean;
   readonly typing: boolean;
   /**
+   * Whether the conversation window is on screen. A `Chat` doubles as the
+   * session's transcript store, so closing a window (or rebuilding history from
+   * the relay backlog on reload) keeps the messages but sets `open` false —
+   * only live activity or an explicit open puts a window back up. This is why a
+   * refresh no longer reopens every conversation you'd ever talked to.
+   */
+  readonly open: boolean;
+  /**
    * `created_at` (secs) of the newest message *received* in this chat. The
    * taskbar flashes while this is ahead of the read marker (`lastReadAt`), so
    * "unread" is derived state — it survives a reload because the marker does,

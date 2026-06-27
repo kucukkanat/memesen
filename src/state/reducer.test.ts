@@ -188,6 +188,29 @@ describe('reducer — chat windows', () => {
     expect(unread(s, ALICE)).toBe(false);
   });
 
+  it('closing a window keeps the transcript, just hides it', () => {
+    const s = run(signedIn(),
+      { type: 'OPEN_CHAT', pubkey: ALICE },
+      text('e1', ALICE, 'hi there'),
+      { type: 'CLOSE_CHAT', pubkey: ALICE },
+    );
+    const c = chatOf(s, ALICE);
+    expect(c?.open).toBe(false);
+    expect(c?.messages.some((m) => m.kind === 'chat')).toBe(true); // history retained
+  });
+
+  it('reopening a closed conversation shows it again with its history', () => {
+    const s = run(signedIn(),
+      { type: 'OPEN_CHAT', pubkey: ALICE },
+      text('e1', ALICE, 'hi there'),
+      { type: 'CLOSE_CHAT', pubkey: ALICE },
+      { type: 'OPEN_CHAT', pubkey: ALICE },
+    );
+    const c = chatOf(s, ALICE);
+    expect(c?.open).toBe(true);
+    expect(c?.messages.filter((m) => m.kind === 'chat')).toHaveLength(1);
+  });
+
   it('resizes only the targeted chat, leaving its position untouched', () => {
     const s = run(signedIn(),
       { type: 'OPEN_CHAT', pubkey: ALICE },
@@ -213,6 +236,20 @@ describe('reducer — messaging', () => {
       text('e1', ALICE, 'oi'),
     );
     expect(unread(s, ALICE)).toBe(true);
+  });
+
+  it('a live message opens its window; replayed backlog does not (clean reload)', () => {
+    const backlog = (id: string, at: number): Action => ({
+      type: 'MESSAGE_RECEIVED', id, partner: BOB, mine: false, at, time: '(9:07 PM)', payload: { kind: 'text', body: 'hi' }, live: false,
+    });
+    // A reload replays history as backlog: the transcript is rebuilt but stays
+    // closed, so no window pops up.
+    const reloaded = run(signedIn(), backlog('b1', 1000), backlog('b2', 2000));
+    expect(chatOf(reloaded, BOB)?.open).toBe(false);
+    expect(chatOf(reloaded, BOB)?.messages.some((m) => m.kind === 'chat')).toBe(true);
+    // A genuinely live message then opens the window.
+    const live = reducer(reloaded, text('b3', BOB, 'you there?', false, 3000));
+    expect(chatOf(live, BOB)?.open).toBe(true);
   });
 
   it('does not re-flash a read conversation when the backlog replays (the reload bug)', () => {

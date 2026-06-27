@@ -44,6 +44,9 @@ export const initialState = (now: number): AppState => ({
 const mapChat = (state: AppState, pubkey: string, fn: (chat: Chat) => Chat): readonly Chat[] =>
   state.chats.map((c) => (c.pubkey === pubkey ? fn(c) : c));
 
+/** Open windows only — drives the cascade offset for the next one opened. */
+const openCount = (state: AppState): number => state.chats.reduce((n, c) => (c.open ? n + 1 : n), 0);
+
 const newChat = (pubkey: string, z: number, index: number): Chat => ({
   pubkey,
   messages: [{ kind: 'system', text: SAFETY_NOTICE, at: 0 }],
@@ -55,6 +58,7 @@ const newChat = (pubkey: string, z: number, index: number): Chat => ({
   shake: false,
   typing: false,
   lastInboundAt: 0,
+  open: true,
   z,
   top: 70 + index * 26,
   left: 60 + index * 30,
@@ -113,7 +117,7 @@ const applyMessage = (state: AppState, args: ApplyArgs): AppState => {
 
   const opening = existing === undefined;
   const zTop = opening ? state.zTop + 1 : state.zTop;
-  const base = existing ?? newChat(pubkey, zTop, state.chats.length);
+  const base = existing ?? newChat(pubkey, zTop, openCount(state));
   const name = displayName(pubkey, state.petnames[pubkey] ?? '', state.profiles[pubkey]);
 
   let chat = markSeen(base, id);
@@ -132,6 +136,12 @@ const applyMessage = (state: AppState, args: ApplyArgs): AppState => {
       if (live) chat = { ...chat, winkOn: true };
       break;
   }
+  // Only live activity puts a window on screen. Backlog replayed on (re)connect
+  // rebuilds the transcript but leaves the window closed, so a reload lands on a
+  // clean desktop instead of reopening every past conversation; unread ones are
+  // surfaced in the buddy list instead.
+  chat = { ...chat, open: (existing?.open ?? false) || live };
+
   // Unread tracking is derived from `lastInboundAt` vs the read marker, so the
   // taskbar flash is a pure function of state and can't be left latched across a
   // reload. The marker only advances on *live* activity (never on the relay
@@ -284,17 +294,18 @@ export const reducer = (state: AppState, action: Action): AppState => {
       const existing = state.chats.find((c) => c.pubkey === action.pubkey);
       if (existing) {
         const lastReadAt = markRead(state.lastReadAt, action.pubkey, newestAt(existing));
-        return { ...state, zTop: z, lastReadAt, statusPickerOpen: false, chats: mapChat(state, action.pubkey, (c) => ({ ...c, z })) };
+        return { ...state, zTop: z, lastReadAt, statusPickerOpen: false, chats: mapChat(state, action.pubkey, (c) => ({ ...c, z, open: true })) };
       }
-      return { ...state, zTop: z, statusPickerOpen: false, chats: [...state.chats, newChat(action.pubkey, z, state.chats.length)] };
+      return { ...state, zTop: z, statusPickerOpen: false, chats: [...state.chats, newChat(action.pubkey, z, openCount(state))] };
     }
     case 'CLOSE_CHAT':
-      return { ...state, chats: state.chats.filter((c) => c.pubkey !== action.pubkey) };
+      // Keep the transcript (and read marker) — just take the window off screen.
+      return { ...state, chats: mapChat(state, action.pubkey, (c) => ({ ...c, open: false })) };
     case 'FOCUS_CHAT': {
       const z = state.zTop + 1;
       const existing = state.chats.find((c) => c.pubkey === action.pubkey);
       const lastReadAt = existing ? markRead(state.lastReadAt, action.pubkey, newestAt(existing)) : state.lastReadAt;
-      return { ...state, zTop: z, lastReadAt, chats: mapChat(state, action.pubkey, (c) => ({ ...c, z })) };
+      return { ...state, zTop: z, lastReadAt, chats: mapChat(state, action.pubkey, (c) => ({ ...c, z, open: true })) };
     }
     case 'MOVE_CHAT':
       return { ...state, chats: mapChat(state, action.pubkey, (c) => ({ ...c, top: action.top, left: action.left })) };

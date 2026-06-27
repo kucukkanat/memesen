@@ -448,8 +448,10 @@ export const App = () => {
     dispatch({ type: 'FOCUS_CHAT', pubkey: id });
     setActiveChat(id);
   };
-  // Mobile shows just the foreground conversation; desktop floats them all.
-  const visibleChats = mobile ? state.chats.filter((c) => c.pubkey === activeChat) : state.chats;
+  // Only open windows render. Mobile shows just the foreground conversation;
+  // desktop floats them all. Closed chats stay in state as transcript history.
+  const openChats = state.chats.filter((c) => c.open);
+  const visibleChats = mobile ? openChats.filter((c) => c.pubkey === activeChat) : openChats;
 
   return (
     <div
@@ -471,7 +473,7 @@ export const App = () => {
           state.screen === 'desktop'
             ? [
                 { id: '__buddy__', label: `${state.myName || 'You'} - Messenger`, status: state.myStatus, flashing: false },
-                ...state.chats.map((c) => {
+                ...openChats.map((c) => {
                   const r = resolveContact(state, c.pubkey);
                   return { id: c.pubkey, label: r.name, status: r.status, flashing: isUnread(c, state.lastReadAt) };
                 }),

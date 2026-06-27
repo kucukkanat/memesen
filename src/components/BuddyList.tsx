@@ -1,6 +1,7 @@
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react';
 import type { AppState, SelectableStatus } from '../state/types';
 import type { ResolvedContact } from '../state/view';
+import { isUnread } from '../state/view';
 import { statusOf } from '../state/data';
 import { CLOSE_BTN, MENU_BAR, SIDE_BORDERS, TITLE_BAR, TITLE_TEXT } from '../ui/chrome';
 import { Butterfly, StatusIcon } from '../assets/icons';
@@ -42,14 +43,16 @@ const GROUP_HEADER: CSSProperties = {
   color: '#0a3a8c',
 };
 
-const ContactRow = ({ contact, mobile, onOpen, onRemove, onRename }: { contact: ResolvedContact; mobile: boolean; onOpen: () => void; onRemove: () => void; onRename: () => void }) => {
+const ContactRow = ({ contact, mobile, unread, onOpen, onRemove, onRename }: { contact: ResolvedContact; mobile: boolean; unread: boolean; onOpen: () => void; onRemove: () => void; onRename: () => void }) => {
   const offline = contact.status === 'offline';
   const avatarSize = mobile ? 34 : 24;
   return (
     <div
       onClick={onOpen}
       className="msn-row"
-      style={{ display: 'flex', alignItems: 'center', gap: mobile ? 11 : 8, padding: mobile ? '10px 10px 10px 16px' : '3px 8px 3px 16px', cursor: 'pointer', opacity: offline ? 0.55 : 1 }}
+      // Unread contacts stay fully lit even when the sender has gone offline, so
+      // a waiting message can't be lost to the dimmed "offline" treatment.
+      style={{ display: 'flex', alignItems: 'center', gap: mobile ? 11 : 8, padding: mobile ? '10px 10px 10px 16px' : '3px 8px 3px 16px', cursor: 'pointer', opacity: offline && !unread ? 0.55 : 1 }}
     >
       <div style={{ position: 'relative', flexShrink: 0, width: avatarSize, height: avatarSize }}>
         <Avatar pic={contact.avatar} size={avatarSize} style={{ filter: offline ? 'grayscale(1)' : undefined }} />
@@ -58,7 +61,8 @@ const ContactRow = ({ contact, mobile, onOpen, onRemove, onRename }: { contact: 
         </span>
       </div>
       <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        <span style={{ color: offline ? '#666' : '#222' }}><RichText text={contact.name} size={15} /></span>
+        {unread && <span title="New message" style={{ marginRight: 4 }}>✉️</span>}
+        <span style={{ color: unread ? '#0a3a8c' : offline ? '#666' : '#222', fontWeight: unread ? 'bold' : undefined }}><RichText text={contact.name} size={15} /></span>
         {contact.psm && !offline && (
           <span style={{ color: '#8a93a0', fontStyle: 'italic' }}> - <RichText text={contact.psm} size={13} /></span>
         )}
@@ -89,6 +93,13 @@ export const BuddyList = (p: BuddyListProps) => {
   const me = statusOf(s.myStatus);
   const online = p.contacts.filter((c) => c.status !== 'offline');
   const offline = p.contacts.filter((c) => c.status === 'offline');
+  // A contact is "unread" when its (possibly closed) transcript has a message
+  // newer than the read marker — this is how unread surfaces after a reload,
+  // now that conversations no longer reopen as windows.
+  const unreadFor = (pubkey: string): boolean => {
+    const chat = s.chats.find((c) => c.pubkey === pubkey);
+    return chat ? isUnread(chat, s.lastReadAt) : false;
+  };
 
   // On phones the buddy list isn't a draggable window — it's the home screen:
   // a fixed full-bleed panel above the bottom nav, with the contact list
@@ -186,12 +197,12 @@ export const BuddyList = (p: BuddyListProps) => {
         <div onClick={() => p.onToggleGroup('online')} style={{ ...GROUP_HEADER, borderBottom: '1px solid #dce6f3' }}>
           <span style={{ fontSize: 8, width: 8 }}>{s.onlineGroupOpen ? '▼' : '▶'}</span> Online ({online.length})
         </div>
-        {s.onlineGroupOpen && online.map((c) => <ContactRow key={c.pubkey} contact={c} mobile={mobile} onOpen={() => p.onOpenChat(c.pubkey)} onRemove={() => p.onRemoveContact(c.pubkey)} onRename={() => p.onRenameContact(c.pubkey)} />)}
+        {s.onlineGroupOpen && online.map((c) => <ContactRow key={c.pubkey} contact={c} mobile={mobile} unread={unreadFor(c.pubkey)} onOpen={() => p.onOpenChat(c.pubkey)} onRemove={() => p.onRemoveContact(c.pubkey)} onRename={() => p.onRenameContact(c.pubkey)} />)}
 
         <div onClick={() => p.onToggleGroup('offline')} style={{ ...GROUP_HEADER, borderTop: '1px solid #dce6f3', borderBottom: '1px solid #dce6f3' }}>
           <span style={{ fontSize: 8, width: 8 }}>{s.offlineGroupOpen ? '▼' : '▶'}</span> Offline ({offline.length})
         </div>
-        {s.offlineGroupOpen && offline.map((c) => <ContactRow key={c.pubkey} contact={c} mobile={mobile} onOpen={() => p.onOpenChat(c.pubkey)} onRemove={() => p.onRemoveContact(c.pubkey)} onRename={() => p.onRenameContact(c.pubkey)} />)}
+        {s.offlineGroupOpen && offline.map((c) => <ContactRow key={c.pubkey} contact={c} mobile={mobile} unread={unreadFor(c.pubkey)} onOpen={() => p.onOpenChat(c.pubkey)} onRemove={() => p.onRemoveContact(c.pubkey)} onRename={() => p.onRenameContact(c.pubkey)} />)}
 
         {p.contacts.length === 0 && (
           <div style={{ padding: '14px 10px', color: '#8a93a0', fontSize: 11, textAlign: 'center', lineHeight: 1.5 }}>
