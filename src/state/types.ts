@@ -77,8 +77,13 @@ export interface Chat {
   readonly winkGlyph: string;
   readonly shake: boolean;
   readonly typing: boolean;
-  /** Taskbar button flashes orange while there's an unread message. */
-  readonly flashing: boolean;
+  /**
+   * `created_at` (secs) of the newest message *received* in this chat. The
+   * taskbar flashes while this is ahead of the read marker (`lastReadAt`), so
+   * "unread" is derived state — it survives a reload because the marker does,
+   * rather than being a latched boolean the relay backlog can resurrect.
+   */
+  readonly lastInboundAt: number;
   readonly z: number;
   readonly top: number;
   readonly left: number;
@@ -108,6 +113,13 @@ export interface AppState {
   readonly petnames: Readonly<Record<string, string>>;
   readonly profiles: Readonly<Record<string, Profile>>;
   readonly presence: Readonly<Record<string, Presence>>;
+  /**
+   * Per-conversation read marker: partner pubkey -> `created_at` (secs) through
+   * which the user has read. Persisted locally and synced across devices via an
+   * encrypted NIP-78 app-data event, so reading on one device clears the flash
+   * on another and survives a refresh.
+   */
+  readonly lastReadAt: Readonly<Record<string, number>>;
 
   // ui
   readonly statusPickerOpen: boolean;
@@ -172,8 +184,9 @@ export type Action =
   | { type: 'SET_DRAFT'; pubkey: string; draft: string }
   | { type: 'TOGGLE_EMOJI'; pubkey: string }
   | { type: 'SET_SHAKE'; pubkey: string; shake: boolean }
-  | { type: 'SET_FLASH'; pubkey: string; on: boolean }
   | { type: 'SET_WINK'; pubkey: string; on: boolean; glyph?: string }
+  /** Merge in read markers loaded from local storage or synced from a relay. */
+  | { type: 'READ_MARKERS_LOADED'; markers: Readonly<Record<string, number>> }
   // messaging
   | { type: 'MESSAGE_SENT'; pubkey: string; id: string; at: number; time: string; payload: IncomingPayload }
   | { type: 'MESSAGE_RECEIVED'; id: string; partner: string; mine: boolean; at: number; time: string; payload: IncomingPayload; live: boolean }

@@ -3,13 +3,13 @@
 // changes), funnels inbound relay events into actions, exposes typed commands
 // for outbound actions, and persists identities/active-account/relays.
 
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch } from 'react';
 import type { Action, AppState, Profile, SelectableStatus } from '../state/types';
 import { formatTime } from '../state/helpers';
 import { secretFromNsec } from '../nostr/keys';
 import { NostrClient, shouldAnnounce, type IncomingMessage } from '../nostr/client';
-import { saveActive, saveIdentities, saveRelays } from '../nostr/identity';
+import { loadReadMarkers, saveActive, saveIdentities, saveReadMarkers, saveRelays } from '../nostr/identity';
 
 /** UX side effects the App layer owns (sounds, toasts) — fired at the I/O edge. */
 export interface NostrSink {
@@ -40,6 +40,10 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
   stateRef.current = state;
   const sinkRef = useRef(sink);
   sinkRef.current = sink;
+  // Gate read-marker publishing until we've drained the relay's copy (EOSE), so
+  // an early publish can't replace a newer remote marker set with a partial one.
+  const [readSynced, setReadSynced] = useState(false);
+  const lastPublishedRead = useRef('');
 
   // Persist the bits that must survive a reload.
   useEffect(() => saveIdentities(state.identities), [state.identities]);
@@ -48,6 +52,15 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
     () => saveRelays(state.relays.map((r) => ({ url: r.url, enabled: r.enabled }))),
     [state.relays],
   );
+
+  // Read markers: persist locally every change, and seed from local storage when
+  // the active account changes (the refresh path also seeds via bootState).
+  useEffect(() => {
+    if (state.myPubkey) saveReadMarkers(state.myPubkey, state.lastReadAt);
+  }, [state.myPubkey, state.lastReadAt]);
+  useEffect(() => {
+    if (state.myPubkey) dispatch({ type: 'READ_MARKERS_LOADED', markers: loadReadMarkers(state.myPubkey) });
+  }, [state.myPubkey, dispatch]);
 
   const activeNsec = useMemo(
     () => state.identities.find((i) => i.pubkey === state.myPubkey)?.nsec ?? null,
@@ -61,6 +74,9 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
     const relays = relayKey ? relayKey.split(',') : [];
     const startedAt = Date.now();
     const online = new Set<string>();
+    // A fresh client must re-drain the relay's read markers before publishing.
+    setReadSynced(false);
+    lastPublishedRead.current = '';
 
     const client = new NostrClient(secretFromNsec(activeNsec), state.myPubkey, relays, {
       onProfile: (pubkey, profile) => dispatch({ type: 'PROFILE_LOADED', pubkey, profile }),
@@ -91,6 +107,8 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
         if (shouldAnnounce(message)) sinkRef.current.onIncoming(message.partner, message);
       },
       onRelayStatus: (url, status) => dispatch({ type: 'RELAY_STATUS', url, status }),
+      onReadMarkers: (markers) => dispatch({ type: 'READ_MARKERS_LOADED', markers }),
+      onReadSynced: () => setReadSynced(true),
     });
 
     clientRef.current = client;
@@ -103,6 +121,21 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
       clientRef.current = null;
     };
   }, [state.myPubkey, activeNsec, relayKey, dispatch]);
+
+  // Sync read markers to relays (debounced) once the remote copy is reconciled.
+  // We publish the whole map — `READ_MARKERS_LOADED` has merged any remote keys
+  // by now, so a replaceable overwrite can't drop another device's progress.
+  useEffect(() => {
+    if (!readSynced) return;
+    const markers = state.lastReadAt;
+    const json = JSON.stringify(markers);
+    if (json === lastPublishedRead.current || Object.keys(markers).length === 0) return;
+    const timer = setTimeout(() => {
+      lastPublishedRead.current = json;
+      clientRef.current?.publishReadMarkers(markers);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [state.lastReadAt, readSynced]);
 
   const followEntries = useCallback(
     (extra?: { pubkey: string; petname: string }) => {

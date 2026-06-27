@@ -4,13 +4,13 @@ import type { AppState, Identity, SelectableStatus } from './state/types';
 import { WINK_GLYPHS } from './state/data';
 import { pick } from './state/helpers';
 import { initialState, reducer } from './state/reducer';
-import { resolveContact } from './state/view';
+import { isUnread, resolveContact } from './state/view';
 import { playSound, resumeAudio, setMuted } from './audio/sounds';
 import { useDrag } from './hooks/useDrag';
 import { useResize } from './hooks/useResize';
 import { useIsMobile } from './hooks/useIsMobile';
 import { useNostr, type NostrSink } from './hooks/useNostr';
-import { loadActive, loadIdentities, loadRelays } from './nostr/identity';
+import { loadActive, loadIdentities, loadReadMarkers, loadRelays } from './nostr/identity';
 import { normaliseRelay } from './nostr/relays';
 import { avatarFor, createKeyPair, npubOf, pubkeyFromInput, pubkeyFromNsec, shortNpub } from './nostr/keys';
 import { isNip05, queryProfile } from 'nostr-tools/nip05';
@@ -64,6 +64,9 @@ const bootState = (): AppState => {
     myPubkey: me.pubkey,
     myName: me.name || shortNpub(me.pubkey),
     myAvatar: avatarFor(me.pubkey),
+    // Preload read markers so the relay backlog replayed on reconnect doesn't
+    // re-flash conversations the user has already read.
+    lastReadAt: loadReadMarkers(me.pubkey),
   };
 };
 
@@ -255,7 +258,7 @@ export const App = () => {
 
   // Flash the browser tab title while any conversation has an unread message.
   useEffect(() => {
-    const flashing = state.chats.find((c) => c.flashing);
+    const flashing = state.chats.find((c) => isUnread(c, state.lastReadAt));
     if (!flashing) {
       document.title = 'MSN Messenger';
       return;
@@ -270,7 +273,7 @@ export const App = () => {
       clearInterval(id);
       document.title = 'MSN Messenger';
     };
-  }, [state.chats]);
+  }, [state.chats, state.lastReadAt]);
 
   // --- identity actions ----------------------------------------------------
 
@@ -470,7 +473,7 @@ export const App = () => {
                 { id: '__buddy__', label: `${state.myName || 'You'} - Messenger`, status: state.myStatus, flashing: false },
                 ...state.chats.map((c) => {
                   const r = resolveContact(state, c.pubkey);
-                  return { id: c.pubkey, label: r.name, status: r.status, flashing: c.flashing };
+                  return { id: c.pubkey, label: r.name, status: r.status, flashing: isUnread(c, state.lastReadAt) };
                 }),
               ]
             : []

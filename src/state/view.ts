@@ -2,9 +2,17 @@
 // denormalised shape the MSN UI wants (name, handle, PSM, presence, avatar).
 // Shared by the reducer (for system-line names) and the components (for render).
 
-import type { AppState, Presence, Profile, StatusKey } from './types';
+import type { AppState, Chat, Presence, Profile, StatusKey } from './types';
 import { PRESENCE_TTL_MS } from './data';
 import { avatarFor, shortNpub } from '../nostr/keys';
+
+/**
+ * A chat has an unread message — and so flashes its taskbar button — when a
+ * message has arrived since the read marker last advanced. Derived (not stored)
+ * so it stays correct across reloads and cross-device reads of the marker.
+ */
+export const isUnread = (chat: Chat, lastReadAt: Readonly<Record<string, number>>): boolean =>
+  chat.lastInboundAt > (lastReadAt[chat.pubkey] ?? 0);
 
 export interface ResolvedContact {
   readonly pubkey: string;

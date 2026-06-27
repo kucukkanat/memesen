@@ -9,6 +9,8 @@ import { readJson, writeJson } from './storage';
 const KEY_IDENTITIES = 'memesen.identities';
 const KEY_ACTIVE = 'memesen.active';
 const KEY_RELAYS = 'memesen.relays';
+// Read markers are per-account (localStorage is shared across identities).
+const readKey = (pubkey: string): string => `memesen.read.${pubkey}`;
 
 export const loadIdentities = (): Identity[] => {
   const list = readJson<Identity[]>(KEY_IDENTITIES, []);
@@ -35,3 +37,13 @@ export const loadRelays = (): StoredRelay[] => {
 };
 
 export const saveRelays = (list: readonly StoredRelay[]): void => writeJson(KEY_RELAYS, list);
+
+/** Per-account read markers: partner pubkey -> read-through `created_at` (secs). */
+export const loadReadMarkers = (pubkey: string): Record<string, number> => {
+  const raw = readJson<Record<string, number>>(readKey(pubkey), {});
+  if (typeof raw !== 'object' || raw === null) return {};
+  return Object.fromEntries(Object.entries(raw).filter(([, at]) => typeof at === 'number'));
+};
+
+export const saveReadMarkers = (pubkey: string, markers: Readonly<Record<string, number>>): void =>
+  writeJson(readKey(pubkey), markers);

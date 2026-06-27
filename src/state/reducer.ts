@@ -24,6 +24,7 @@ export const initialState = (now: number): AppState => ({
   petnames: {},
   profiles: {},
   presence: {},
+  lastReadAt: {},
   statusPickerOpen: false,
   onlineGroupOpen: true,
   offlineGroupOpen: true,
@@ -53,7 +54,7 @@ const newChat = (pubkey: string, z: number, index: number): Chat => ({
   winkGlyph: '😉',
   shake: false,
   typing: false,
-  flashing: false,
+  lastInboundAt: 0,
   z,
   top: 70 + index * 26,
   left: 60 + index * 30,
@@ -69,6 +70,17 @@ const append = (chat: Chat, message: Message): Chat => ({
   messages: [...chat.messages, message].sort((a, b) => a.at - b.at),
 });
 const markSeen = (chat: Chat, id: string): Chat => ({ ...chat, seen: [...chat.seen, id] });
+
+/** Advance a conversation's read marker; never moves it backwards. */
+const markRead = (
+  markers: Readonly<Record<string, number>>,
+  pubkey: string,
+  at: number,
+): Readonly<Record<string, number>> =>
+  at > (markers[pubkey] ?? 0) ? { ...markers, [pubkey]: at } : markers;
+
+/** Newest `created_at` in a transcript (messages are kept sorted ascending). */
+const newestAt = (chat: Chat): number => chat.messages[chat.messages.length - 1]?.at ?? 0;
 
 const mergeProfile = (prev: Profile | undefined, next: Profile): Profile => ({ ...prev, ...next });
 
@@ -120,11 +132,24 @@ const applyMessage = (state: AppState, args: ApplyArgs): AppState => {
       if (live) chat = { ...chat, winkOn: true };
       break;
   }
-  // Flash the taskbar only for inbound messages to an already-open background window.
-  if (inbound && !mine && existing && existing.z !== state.zTop) chat = { ...chat, flashing: true };
+  // Unread tracking is derived from `lastInboundAt` vs the read marker, so the
+  // taskbar flash is a pure function of state and can't be left latched across a
+  // reload. The marker only advances on *live* activity (never on the relay
+  // backlog, which would otherwise mark genuinely-unread history as read).
+  let lastReadAt = state.lastReadAt;
+  if (inbound && !mine) {
+    chat = { ...chat, lastInboundAt: Math.max(chat.lastInboundAt, at) };
+    const background = existing !== undefined && existing.z !== state.zTop;
+    // Live message you're actively looking at (foreground, or a brand-new
+    // conversation that opens focused) counts as read; a background one flashes.
+    if (live && !background) lastReadAt = markRead(lastReadAt, pubkey, at);
+  } else if (mine && live) {
+    // Sending a message means you've seen everything in the conversation.
+    lastReadAt = markRead(lastReadAt, pubkey, at);
+  }
 
   const chats = opening ? [...state.chats, chat] : mapChat(state, pubkey, () => chat);
-  return { ...state, chats, zTop };
+  return { ...state, chats, zTop, lastReadAt };
 };
 
 export const reducer = (state: AppState, action: Action): AppState => {
@@ -159,6 +184,7 @@ export const reducer = (state: AppState, action: Action): AppState => {
         petnames: {},
         profiles: {},
         presence: {},
+        lastReadAt: {},
         statusPickerOpen: false,
         relayManagerOpen: false,
         addContactOpen: false,
@@ -257,7 +283,8 @@ export const reducer = (state: AppState, action: Action): AppState => {
       const z = state.zTop + 1;
       const existing = state.chats.find((c) => c.pubkey === action.pubkey);
       if (existing) {
-        return { ...state, zTop: z, statusPickerOpen: false, chats: mapChat(state, action.pubkey, (c) => ({ ...c, z, flashing: false })) };
+        const lastReadAt = markRead(state.lastReadAt, action.pubkey, newestAt(existing));
+        return { ...state, zTop: z, lastReadAt, statusPickerOpen: false, chats: mapChat(state, action.pubkey, (c) => ({ ...c, z })) };
       }
       return { ...state, zTop: z, statusPickerOpen: false, chats: [...state.chats, newChat(action.pubkey, z, state.chats.length)] };
     }
@@ -265,7 +292,9 @@ export const reducer = (state: AppState, action: Action): AppState => {
       return { ...state, chats: state.chats.filter((c) => c.pubkey !== action.pubkey) };
     case 'FOCUS_CHAT': {
       const z = state.zTop + 1;
-      return { ...state, zTop: z, chats: mapChat(state, action.pubkey, (c) => ({ ...c, z, flashing: false })) };
+      const existing = state.chats.find((c) => c.pubkey === action.pubkey);
+      const lastReadAt = existing ? markRead(state.lastReadAt, action.pubkey, newestAt(existing)) : state.lastReadAt;
+      return { ...state, zTop: z, lastReadAt, chats: mapChat(state, action.pubkey, (c) => ({ ...c, z })) };
     }
     case 'MOVE_CHAT':
       return { ...state, chats: mapChat(state, action.pubkey, (c) => ({ ...c, top: action.top, left: action.left })) };
@@ -281,8 +310,6 @@ export const reducer = (state: AppState, action: Action): AppState => {
       return { ...state, chats: mapChat(state, action.pubkey, (c) => ({ ...c, emojiOpen: !c.emojiOpen })) };
     case 'SET_SHAKE':
       return { ...state, chats: mapChat(state, action.pubkey, (c) => ({ ...c, shake: action.shake })) };
-    case 'SET_FLASH':
-      return { ...state, chats: mapChat(state, action.pubkey, (c) => ({ ...c, flashing: action.on })) };
     case 'SET_WINK':
       return { ...state, chats: mapChat(state, action.pubkey, (c) => ({ ...c, winkOn: action.on, winkGlyph: action.glyph ?? c.winkGlyph })) };
 
@@ -292,6 +319,16 @@ export const reducer = (state: AppState, action: Action): AppState => {
       return applyMessage(state, { pubkey: action.partner, id: action.id, mine: action.mine, at: action.at, time: action.time, payload: action.payload, inbound: true, live: action.live });
     case 'APPEND_SYSTEM':
       return { ...state, chats: mapChat(state, action.pubkey, (c) => append(c, { kind: 'system', text: action.text, at: Math.floor(state.now / 1000) })) };
+
+    case 'READ_MARKERS_LOADED': {
+      // Merge by max so neither a stale local copy nor an out-of-order relay
+      // delivery can roll a conversation back to "unread".
+      const merged: Record<string, number> = { ...state.lastReadAt };
+      for (const [pubkey, at] of Object.entries(action.markers)) {
+        if (typeof at === 'number' && at > (merged[pubkey] ?? 0)) merged[pubkey] = at;
+      }
+      return { ...state, lastReadAt: merged };
+    }
 
     case 'TICK':
       return { ...state, now: action.now };

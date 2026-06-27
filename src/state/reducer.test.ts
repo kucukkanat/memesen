@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import type { Action, AppState, Chat } from './types';
 import { initialState, reducer } from './reducer';
+import { isUnread } from './view';
+
+const unread = (s: AppState, pubkey: string): boolean => {
+  const c = s.chats.find((chat) => chat.pubkey === pubkey);
+  return c ? isUnread(c, s.lastReadAt) : false;
+};
 
 const T0 = new Date(2004, 2, 1, 21, 7).getTime();
 const base = (): AppState => initialState(T0);
@@ -175,10 +181,11 @@ describe('reducer — chat windows', () => {
   it('focusing clears the flash and raises the window', () => {
     const s = run(signedIn(),
       { type: 'OPEN_CHAT', pubkey: ALICE },
-      { type: 'SET_FLASH', pubkey: ALICE, on: true },
+      { type: 'OPEN_CHAT', pubkey: BOB }, // alice now in the background
+      text('e1', ALICE, 'oi'), // flashes alice's background window
       { type: 'FOCUS_CHAT', pubkey: ALICE },
     );
-    expect(chatOf(s, ALICE)?.flashing).toBe(false);
+    expect(unread(s, ALICE)).toBe(false);
   });
 
   it('resizes only the targeted chat, leaving its position untouched', () => {
@@ -195,7 +202,7 @@ describe('reducer — messaging', () => {
   it('an inbound message opens a chat in the foreground (no flash)', () => {
     const s = reducer(signedIn(), text('e1', ALICE, 'hello :)'));
     const c = chatOf(s, ALICE);
-    expect(c?.flashing).toBe(false);
+    expect(unread(s, ALICE)).toBe(false);
     expect(c?.messages.at(-1)).toEqual({ kind: 'chat', id: 'e1', mine: false, body: 'hello :)', time: '(9:07 PM)', at: 1000 });
   });
 
@@ -205,7 +212,41 @@ describe('reducer — messaging', () => {
       { type: 'OPEN_CHAT', pubkey: BOB }, // bob now in front, alice is behind
       text('e1', ALICE, 'oi'),
     );
-    expect(chatOf(s, ALICE)?.flashing).toBe(true);
+    expect(unread(s, ALICE)).toBe(true);
+  });
+
+  it('does not re-flash a read conversation when the backlog replays (the reload bug)', () => {
+    // Simulate a reload: the read marker survives (loaded from storage / sync),
+    // then the relay replays the whole history as backlog (live=false).
+    const replay = (id: string, at: number): Action => ({
+      type: 'MESSAGE_RECEIVED', id, partner: ALICE, mine: false, at, time: '(9:07 PM)', payload: { kind: 'text', body: 'hi' }, live: false,
+    });
+    const s = run(
+      { ...signedIn(), lastReadAt: { [ALICE]: 3000 } },
+      { type: 'OPEN_CHAT', pubkey: BOB }, // something else holds the foreground
+      replay('r1', 1000),
+      replay('r3', 3000),
+      replay('r2', 2000),
+    );
+    expect(unread(s, ALICE)).toBe(false);
+  });
+
+  it('flashes when the backlog contains a message newer than the read marker', () => {
+    const s = run(
+      { ...signedIn(), lastReadAt: { [ALICE]: 3000 } },
+      { type: 'OPEN_CHAT', pubkey: BOB },
+      { type: 'MESSAGE_RECEIVED', id: 'r4', partner: ALICE, mine: false, at: 4000, time: '(9:07 PM)', payload: { kind: 'text', body: 'new!' }, live: false },
+    );
+    expect(unread(s, ALICE)).toBe(true);
+  });
+
+  it('merges read markers by max, never rolling a conversation back to unread', () => {
+    const s = run(
+      { ...signedIn(), lastReadAt: { [ALICE]: 5000 } },
+      { type: 'READ_MARKERS_LOADED', markers: { [ALICE]: 2000, [BOB]: 9000 } },
+    );
+    expect(s.lastReadAt[ALICE]).toBe(5000);
+    expect(s.lastReadAt[BOB]).toBe(9000);
   });
 
   it('orders the transcript by timestamp even when relayed out of order', () => {

@@ -7,3 +7,7 @@ export const KIND_DM_LEGACY = 4; // NIP-04 encrypted DM (received-only interop)
 export const KIND_CHAT = 14; // NIP-17 chat message (the unsigned "rumor")
 export const KIND_GIFT_WRAP = 1059; // NIP-59 gift wrap that carries a NIP-17 DM
 export const KIND_STATUS = 30315; // NIP-38 user status — our presence + PSM
+export const KIND_APP_DATA = 30078; // NIP-78 app-specific data — our read markers
+
+/** NIP-78 `d`-tag namespacing our read markers among any other app data. */
+export const APP_DATA_READ = 'memesen/read-markers';
