@@ -3,7 +3,8 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react';
 import type { Chat } from '../state/types';
 import type { ResolvedContact } from '../state/view';
 import { statusOf } from '../state/data';
-import { CLOSE_BTN, MENU_BAR, SIDE_BORDERS, TITLE_BAR, TITLE_TEXT, GREEN_BTN } from '../ui/chrome';
+import { CLOSE_BTN, SIDE_BORDERS, TITLE_BAR, TITLE_TEXT, GREEN_BTN } from '../ui/chrome';
+import { MenuBar, type MenuDef } from './MenuBar';
 import type { StatusKey } from '../state/types';
 import { Butterfly, StatusIcon } from '../assets/icons';
 import { Avatar } from '../assets/avatars';
@@ -76,6 +77,11 @@ export interface ChatWindowProps {
   readonly onOpenFont: () => void;
   /** Re-send a message whose delivery failed (click the ⚠ marker). */
   readonly onResend: (body: string) => void;
+  /** Copy this contact's public key (npub) to the clipboard. */
+  readonly onCopyKey: () => void;
+  /** Copy arbitrary text (the conversation transcript) with toast feedback. */
+  readonly onCopyText: (text: string, label: string) => void;
+  readonly onAbout: () => void;
 }
 
 const DisplayPicture = ({ pic, status, label }: { pic: string; status: StatusKey; label: string }) => (
@@ -104,6 +110,78 @@ export const ChatWindow = (p: ChatWindowProps) => {
     p.onPickEmoji(code);
     inputRef.current?.focus();
   };
+
+  // Render the transcript as plain text for copy/save (system lines prefixed,
+  // chat lines as "Name (time): body").
+  const transcript = (): string =>
+    chat.messages
+      .map((m) => (m.kind === 'system' ? `* ${m.text}` : `${m.mine ? p.myName : contact.name} ${m.time}: ${m.body}`))
+      .join('\n');
+
+  const saveConversation = (): void => {
+    const url = URL.createObjectURL(new Blob([transcript()], { type: 'text/plain;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Conversation with ${contact.name}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Select the rendered transcript so the user can copy with Ctrl/Cmd+C too.
+  const selectAll = (): void => {
+    const el = logRef.current;
+    if (!el) return;
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  };
+
+  const hasMessages = chat.messages.length > 0;
+  const menus: readonly MenuDef[] = [
+    {
+      label: 'File',
+      access: 'F',
+      items: [
+        { kind: 'item', label: 'Save Conversation…', onClick: saveConversation, disabled: !hasMessages },
+        { kind: 'separator' },
+        { kind: 'item', label: 'Close', onClick: p.onClose },
+      ],
+    },
+    {
+      label: 'Edit',
+      access: 'E',
+      items: [
+        { kind: 'item', label: 'Copy Conversation', onClick: () => p.onCopyText(transcript(), 'conversation'), disabled: !hasMessages },
+        { kind: 'item', label: 'Select All', onClick: selectAll, disabled: !hasMessages },
+      ],
+    },
+    {
+      label: 'Actions',
+      access: 'A',
+      items: [
+        { kind: 'item', label: 'Send a Nudge', onClick: p.onNudge },
+        { kind: 'item', label: 'Send a Wink', onClick: p.onWink },
+        { kind: 'separator' },
+        { kind: 'item', label: 'Add to Contacts', onClick: p.onAddContact, disabled: inContacts },
+        { kind: 'item', label: "Copy Contact's Public Key", onClick: p.onCopyKey },
+      ],
+    },
+    {
+      label: 'Tools',
+      access: 'T',
+      items: [
+        { kind: 'item', label: 'Insert Emoticon…', onClick: p.onToggleEmoji },
+        { kind: 'item', label: 'Change Font & Color…', onClick: p.onOpenFont },
+      ],
+    },
+    {
+      label: 'Help',
+      access: 'H',
+      items: [{ kind: 'item', label: 'About MSN Messenger', onClick: p.onAbout }],
+    },
+  ];
 
   return (
     <div
@@ -141,15 +219,11 @@ export const ChatWindow = (p: ChatWindowProps) => {
       </div>
 
       {/* menu — with the msn wordmark parked at the far right, as in the original */}
-      <div style={{ ...MENU_BAR, flexShrink: 0, alignItems: 'center' }}>
-        <span className="msn-link"><u>F</u>ile</span>
-        <span className="msn-link"><u>E</u>dit</span>
-        <span className="msn-link"><u>A</u>ctions</span>
-        <span className="msn-link"><u>T</u>ools</span>
-        <span className="msn-link"><u>H</u>elp</span>
-        <span style={{ flex: 1 }} />
-        <img src={msnLogo} alt="msn" height={15} draggable={false} style={{ verticalAlign: 'middle', opacity: 0.95 }} />
-      </div>
+      <MenuBar
+        menus={menus}
+        style={{ flexShrink: 0, alignItems: 'center' }}
+        trailing={<img src={msnLogo} alt="msn" height={15} draggable={false} style={{ verticalAlign: 'middle', opacity: 0.95 }} />}
+      />
 
       {/* big action toolbar */}
       <div

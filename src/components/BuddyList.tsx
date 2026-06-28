@@ -3,7 +3,8 @@ import type { AppState, SelectableStatus } from '../state/types';
 import type { ResolvedContact } from '../state/view';
 import { isUnread } from '../state/view';
 import { statusOf } from '../state/data';
-import { CLOSE_BTN, MENU_BAR, SIDE_BORDERS, TITLE_BAR, TITLE_TEXT } from '../ui/chrome';
+import { CLOSE_BTN, SIDE_BORDERS, TITLE_BAR, TITLE_TEXT } from '../ui/chrome';
+import { MenuBar, type MenuDef } from './MenuBar';
 import { Butterfly, StatusIcon } from '../assets/icons';
 import { Avatar } from '../assets/avatars';
 import { RichText } from '../assets/emoticons';
@@ -29,7 +30,13 @@ export interface BuddyListProps {
   readonly onAddContact: () => void;
   readonly onShare: () => void;
   readonly onExport: () => void;
+  readonly onImport: () => void;
   readonly onOpenRelays: () => void;
+  /** Copy your own public key (npub) to the clipboard. */
+  readonly onCopyKey: () => void;
+  readonly muted: boolean;
+  readonly onToggleMute: () => void;
+  readonly onAbout: () => void;
 }
 
 const GROUP_HEADER: CSSProperties = {
@@ -101,6 +108,64 @@ export const BuddyList = (p: BuddyListProps) => {
     return chat ? isUnread(chat, s.lastReadAt) : false;
   };
 
+  const menus: readonly MenuDef[] = [
+    {
+      label: 'File',
+      access: 'F',
+      items: [
+        {
+          kind: 'submenu',
+          label: 'My Status',
+          items: [
+            { kind: 'item', label: 'Online', onClick: () => p.onPickStatus('online') },
+            { kind: 'item', label: 'Busy', onClick: () => p.onPickStatus('busy') },
+            { kind: 'item', label: 'Away', onClick: () => p.onPickStatus('away') },
+            { kind: 'item', label: 'Appear Offline', onClick: () => p.onPickStatus('invisible') },
+          ],
+        },
+        { kind: 'separator' },
+        { kind: 'item', label: 'Sign Out', onClick: p.onSignOut },
+      ],
+    },
+    {
+      label: 'Contacts',
+      access: 'C',
+      items: [
+        { kind: 'item', label: 'Add a Contact…', onClick: p.onAddContact },
+        { kind: 'separator' },
+        { kind: 'item', label: 'Share My Contact Details…', onClick: p.onShare },
+      ],
+    },
+    {
+      label: 'Actions',
+      access: 'A',
+      items: [
+        { kind: 'item', label: 'Change Display Name…', onClick: p.onEditName },
+        { kind: 'item', label: 'Change Personal Message…', onClick: p.onEditPsm },
+        { kind: 'item', label: 'Change Display Picture…', onClick: p.onChangePicture },
+        { kind: 'separator' },
+        { kind: 'item', label: 'Copy My Public Key', onClick: p.onCopyKey },
+      ],
+    },
+    {
+      label: 'Tools',
+      access: 'T',
+      items: [
+        { kind: 'item', label: 'Servers…', onClick: p.onOpenRelays },
+        { kind: 'separator' },
+        { kind: 'item', label: 'Back Up / Export Account…', onClick: p.onExport },
+        { kind: 'item', label: 'Import an Account…', onClick: p.onImport },
+        { kind: 'separator' },
+        { kind: 'item', label: p.muted ? 'Turn Sounds On' : 'Turn Sounds Off', onClick: p.onToggleMute },
+      ],
+    },
+    {
+      label: 'Help',
+      access: 'H',
+      items: [{ kind: 'item', label: 'About MSN Messenger', onClick: p.onAbout }],
+    },
+  ];
+
   // On phones the buddy list isn't a draggable window — it's the home screen:
   // a fixed full-bleed panel above the bottom nav, with the contact list
   // flexing to fill whatever height is left. Desktop keeps the floating window.
@@ -132,13 +197,7 @@ export const BuddyList = (p: BuddyListProps) => {
       </div>
 
       {/* menu */}
-      <div style={{ ...MENU_BAR, flexShrink: 0 }}>
-        <span className="msn-link"><u>F</u>ile</span>
-        <span className="msn-link" onClick={p.onAddContact}><u>C</u>ontacts</span>
-        <span className="msn-link"><u>A</u>ctions</span>
-        <span className="msn-link" onClick={p.onOpenRelays}><u>T</u>ools</span>
-        <span className="msn-link"><u>H</u>elp</span>
-      </div>
+      <MenuBar menus={menus} style={{ flexShrink: 0 }} />
 
       {/* my profile header */}
       <div style={{ ...SIDE_BORDERS, flexShrink: 0, background: 'linear-gradient(180deg,#1f74da,#0c47a4)', padding: '7px 9px', display: 'flex', alignItems: 'center', gap: 9, position: 'relative' }}>

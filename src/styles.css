@@ -107,6 +107,10 @@ body,
 .msn-link { cursor: pointer; }
 .msn-link:hover { text-decoration: underline; }
 
+/* Classic Win32 dropdown row: blue highlight bar on hover (see MenuBar.tsx). */
+.msn-menuitem:hover { background: #316ac5; color: #fff !important; }
+.msn-menuitem:hover span { color: #fff !important; }
+
 .msn-row:hover { background: #eaf2ff !important; }
 
 .msn-statusopt:hover {

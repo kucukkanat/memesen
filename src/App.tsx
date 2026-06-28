@@ -155,6 +155,21 @@ export const App = () => {
     }
   }, [pushToast]);
 
+  // The Help ▸ About box — an OK-only message box describing what this is.
+  const showAbout = useCallback(() => setNotice({
+    title: 'About MSN Messenger',
+    message: (
+      <>
+        <b>MSN Messenger</b> — a faithful early-2000s instant messenger, riding on
+        real encrypted <b>Nostr</b> direct messages, identities and relays.
+        <br />
+        <br />
+        Your contacts, messages and presence are end-to-end encrypted and never
+        touch a central server — only the relays you choose.
+      </>
+    ),
+  }), []);
+
   // Strip the `?add=` param so a refresh doesn't re-prompt.
   const clearInviteParam = useCallback(() => {
     const url = new URL(window.location.href);
@@ -584,7 +599,12 @@ export const App = () => {
             onAddContact={() => dispatch({ type: 'TOGGLE_ADD_CONTACT' })}
             onShare={() => dispatch({ type: 'TOGGLE_SHARE' })}
             onExport={() => setExportOpen(true)}
+            onImport={() => setImportOpen(true)}
             onOpenRelays={() => dispatch({ type: 'TOGGLE_RELAY_MANAGER' })}
+            onCopyKey={() => state.myPubkey && copy(npubOf(state.myPubkey), 'public key')}
+            muted={muted}
+            onToggleMute={toggleMute}
+            onAbout={showAbout}
           />
 
           {visibleChats.map((chat) => (
@@ -626,6 +646,9 @@ export const App = () => {
               onPickEmoji={(code) => pickEmoji(chat.pubkey, code)}
               onOpenFont={() => setFontOpen(true)}
               onResend={(body) => { nostr.sendText(chat.pubkey, body); playSound('send'); }}
+              onCopyKey={() => copy(npubOf(chat.pubkey), "contact's public key")}
+              onCopyText={copy}
+              onAbout={showAbout}
             />
           ))}
 
