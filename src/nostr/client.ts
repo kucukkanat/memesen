@@ -76,6 +76,15 @@ export const shouldAnnounceOnline = (p: {
   readonly isSelf: boolean;
 }): boolean => p.live && !p.wasOnline && !p.isSelf && isPresenceFresh(p.status, p.at, p.now);
 
+/**
+ * Whether the app becoming visible again warrants a forced reconnect: only if
+ * it was actually hidden (`hiddenSince > 0`) for at least the grace window. The
+ * grace ignores momentary app-switcher peeks so a quick glance away doesn't
+ * needlessly tear down and rebuild every socket. `hiddenSince`/`now` are ms.
+ */
+export const shouldReconnectOnResume = (hiddenSince: number, now: number, graceMs: number): boolean =>
+  hiddenSince > 0 && now - hiddenSince >= graceMs;
+
 export interface ClientHandlers {
   readonly onProfile: (pubkey: string, profile: Profile) => void;
   readonly onFollows: (entries: ReadonlyArray<{ pubkey: string; petname: string }>) => void;
@@ -148,8 +157,39 @@ export class NostrClient {
     this.pool.onRelayConnectionFailure = (url) => this.report(this.configured(url), 'error');
   }
 
-  /** Open every live subscription for the active identity. */
+  /** Start the client: open every live subscription and begin health polling. */
   start(): void {
+    this.openSubscriptions();
+    this.healthTimer = setInterval(() => this.pollHealth(), HEALTH_INTERVAL_MS);
+  }
+
+  /**
+   * Force a clean reconnect of every relay and re-open all subscriptions.
+   *
+   * iOS (and other mobile browsers) suspend a backgrounded tab/PWA and silently
+   * tear down its WebSockets. On resume the sockets are dead — or zombie
+   * half-open, where `readyState` still reads OPEN so nothing notices — and the
+   * pool's own auto-reconnect can't be relied on: its backoff timers are frozen
+   * while suspended, and a relay whose first wake-up attempt fails is dropped
+   * from the pool permanently (`skipReconnection`). So when the app returns to
+   * the foreground we don't wait on any of that — we tear every socket and
+   * subscription down and rebuild from scratch, which deterministically resumes
+   * delivery. Re-draining the relay backlog stays quiet: the per-sub EOSE/`live`
+   * gating means replayed history can't re-toast.
+   */
+  reconnect(): void {
+    if (this.closed) return;
+    this.contactsSub?.close();
+    this.contactsSub = null;
+    for (const sub of this.subs) sub.close();
+    this.subs.length = 0;
+    // Drop the underlying sockets (zombies included) so the next subscribe
+    // rebuilds them via ensureRelay rather than reusing a dead connection.
+    this.pool.close(this.relays);
+    this.openSubscriptions();
+  }
+
+  private openSubscriptions(): void {
     // Our own metadata, follow list and presence (and any future edits to them).
     const own = { live: false };
     this.subs.push(
@@ -199,7 +239,6 @@ export class NostrClient {
         oneose: () => this.handlers.onReadSynced(),
       }),
     );
-    this.healthTimer = setInterval(() => this.pollHealth(), HEALTH_INTERVAL_MS);
   }
 
   /** Swap the relay set live (used by the Connection manager). */

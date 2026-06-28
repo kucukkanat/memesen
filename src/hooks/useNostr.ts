@@ -8,7 +8,7 @@ import type { Dispatch } from 'react';
 import type { Action, AppState, Profile, SelectableStatus } from '../state/types';
 import { formatTime } from '../state/helpers';
 import { secretFromNsec } from '../nostr/keys';
-import { isPresenceFresh, NostrClient, shouldAnnounce, shouldAnnounceOnline, type IncomingMessage } from '../nostr/client';
+import { isPresenceFresh, NostrClient, shouldAnnounce, shouldAnnounceOnline, shouldReconnectOnResume, type IncomingMessage } from '../nostr/client';
 import { loadReadMarkers, saveActive, saveFont, saveIdentities, saveReadMarkers, saveRelays } from '../nostr/identity';
 
 /** UX side effects the App layer owns (sounds, toasts) — fired at the I/O edge. */
@@ -40,6 +40,14 @@ export interface NostrCommands {
 // indicator after the (longer) TTL. TTL > throttle keeps it lit while typing.
 const TYPING_THROTTLE_MS = 3000;
 const TYPING_TTL_MS = 5000;
+
+// How long the app must have been backgrounded before a return to the
+// foreground forces a reconnect. Filters out momentary app-switcher peeks while
+// still catching any real suspend (iOS kills backgrounded sockets in seconds).
+const RESUME_GRACE_MS = 1000;
+// Coalesce the burst of events a single foreground transition can emit
+// (visibilitychange + pageshow + online) into one reconnect.
+const RESUME_DEBOUNCE_MS = 250;
 
 export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: NostrSink): NostrCommands => {
   const clientRef = useRef<NostrClient | null>(null);
@@ -154,6 +162,50 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
       lastTypingSent.current = {};
     };
   }, [state.myPubkey, activeNsec, relayKey, dispatch]);
+
+  // Re-establish connections when the app returns to the foreground. iOS (and
+  // other mobile browsers) suspend a backgrounded PWA/tab and silently kill its
+  // WebSockets; no timer or callback runs inside the page while suspended, so we
+  // can only react on resume. We force a clean reconnect (see
+  // NostrClient.reconnect) and re-announce our presence so peers see us back
+  // online at once. Independent of the client-build effect — the listeners
+  // outlive any single client and always act on the current one via the ref.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let hiddenSince = 0;
+
+    const reconnect = (): void => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const client = clientRef.current;
+        if (!client) return;
+        client.reconnect();
+        client.publishStatus(stateRef.current.myStatus, stateRef.current.myPsm);
+      }, RESUME_DEBOUNCE_MS);
+    };
+
+    const onVisibility = (): void => {
+      if (document.visibilityState === 'hidden') {
+        hiddenSince = Date.now();
+        return;
+      }
+      if (shouldReconnectOnResume(hiddenSince, Date.now(), RESUME_GRACE_MS)) reconnect();
+      hiddenSince = 0;
+    };
+    // bfcache restore (mobile back/forward) resurrects a frozen page with dead
+    // sockets; the network coming back is reason enough regardless of visibility.
+    const onPageShow = (e: PageTransitionEvent): void => { if (e.persisted) reconnect(); };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('online', reconnect);
+    window.addEventListener('pageshow', onPageShow);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('online', reconnect);
+      window.removeEventListener('pageshow', onPageShow);
+    };
+  }, []);
 
   // Sync read markers to relays (debounced) once the remote copy is reconciled.
   // We publish the whole map — `READ_MARKERS_LOADED` has merged any remote keys

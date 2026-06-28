@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { isPresenceFresh, isPublishAccepted, shouldAnnounce, shouldAnnounceOnline, type IncomingMessage } from './client';
+import { isPresenceFresh, isPublishAccepted, shouldAnnounce, shouldAnnounceOnline, shouldReconnectOnResume, type IncomingMessage } from './client';
 import { PRESENCE_TTL_MS } from '../state/data';
 
 const msg = (over: Partial<IncomingMessage>): IncomingMessage => ({
@@ -74,6 +74,24 @@ describe('shouldAnnounceOnline', () => {
 
   it('stays silent when the contact went offline', () => {
     expect(shouldAnnounceOnline({ ...base, status: 'offline' })).toBe(false);
+  });
+});
+
+describe('shouldReconnectOnResume', () => {
+  const NOW = 1_700_000_000_000;
+  const GRACE = 1000;
+
+  it('reconnects after being hidden longer than the grace window', () => {
+    expect(shouldReconnectOnResume(NOW - GRACE, NOW, GRACE)).toBe(true);
+    expect(shouldReconnectOnResume(NOW - 60_000, NOW, GRACE)).toBe(true);
+  });
+
+  it('ignores a momentary app-switcher peek shorter than the grace', () => {
+    expect(shouldReconnectOnResume(NOW - 200, NOW, GRACE)).toBe(false);
+  });
+
+  it('does nothing when the app was never hidden', () => {
+    expect(shouldReconnectOnResume(0, NOW, GRACE)).toBe(false);
   });
 });
 
