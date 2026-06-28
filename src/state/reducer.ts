@@ -131,6 +131,11 @@ const applyMessage = (state: AppState, args: ApplyArgs): AppState => {
       chat = append(chat, { kind: 'chat', id, mine, body: payload.body, time, at, ...(inbound ? {} : { delivery: 'sending' as const }) });
       if (!inbound) chat = { ...chat, draft: '' };
       break;
+    case 'image':
+      // Same delivery/dedupe path as text, flagged so the UI renders the data
+      // URL as a picture. Sending a picture leaves any half-typed draft alone.
+      chat = append(chat, { kind: 'chat', id, mine, body: payload.body, image: true, time, at, ...(inbound ? {} : { delivery: 'sending' as const }) });
+      break;
     case 'nudge':
       chat = append(chat, { kind: 'system', text: mine ? 'You have just sent a Nudge.' : `${name} has just sent you a Nudge.`, at });
       if (live) chat = { ...chat, shake: true };

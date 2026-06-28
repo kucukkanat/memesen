@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react';
+import { imageFilesFrom, isImageFile } from '../nostr/images';
 import type { Chat } from '../state/types';
 import type { ResolvedContact } from '../state/view';
 import { statusOf } from '../state/data';
@@ -54,6 +55,21 @@ const FMT_BTN: CSSProperties = {
 const FMT_ICON: CSSProperties = { width: 15, height: 15, verticalAlign: 'middle' };
 const SEP: CSSProperties = { width: 1, alignSelf: 'stretch', margin: '2px 3px', background: '#c4d2e6' };
 
+// A shared picture rendered inline: a small white-matted "photo" with the same
+// glossy blue chrome as the rest of the window, click to view full size.
+const PHOTO: CSSProperties = {
+  display: 'block',
+  maxWidth: 220,
+  maxHeight: 220,
+  objectFit: 'contain',
+  background: '#fff',
+  padding: 3,
+  border: '1px solid #9bb0d0',
+  borderRadius: 2,
+  boxShadow: '0 1px 3px rgba(0,0,0,.25)',
+  cursor: 'zoom-in',
+};
+
 export interface ChatWindowProps {
   readonly chat: Chat;
   readonly contact: ResolvedContact;
@@ -70,13 +86,15 @@ export interface ChatWindowProps {
   readonly onDraft: (v: string) => void;
   readonly onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   readonly onSend: () => void;
+  /** A picture the user picked or pasted, to be processed and sent. */
+  readonly onSendImage: (file: File) => void;
   readonly onNudge: () => void;
   readonly onWink: () => void;
   readonly onToggleEmoji: () => void;
   readonly onPickEmoji: (code: string) => void;
   readonly onOpenFont: () => void;
   /** Re-send a message whose delivery failed (click the ⚠ marker). */
-  readonly onResend: (body: string) => void;
+  readonly onResend: (body: string, image: boolean) => void;
   /** Copy this contact's public key (npub) to the clipboard. */
   readonly onCopyKey: () => void;
   /** Copy arbitrary text (the conversation transcript) with toast feedback. */
@@ -99,6 +117,25 @@ export const ChatWindow = (p: ChatWindowProps) => {
   const info = statusOf(contact.status);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  // The picture the user tapped to view full-size (an in-window lightbox).
+  const [zoom, setZoom] = useState<string | null>(null);
+
+  // "Send Images" → open an image-only picker; on mobile this offers the camera
+  // and photo library too. Each chosen picture is processed and sent by the App.
+  const pickImages = (): void => fileRef.current?.click();
+  const onFilesChosen = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    for (const file of Array.from(e.target.files ?? []).filter(isImageFile)) p.onSendImage(file);
+    e.target.value = ''; // let the same file be picked again later
+  };
+  // Pasting a copied image straight into the input sends it; text paste is
+  // untouched (we only intercept when the clipboard actually holds a picture).
+  const onPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>): void => {
+    const images = imageFilesFrom(e.clipboardData);
+    if (images.length === 0) return;
+    e.preventDefault();
+    for (const file of images) p.onSendImage(file);
+  };
 
   // Keep the transcript pinned to the latest message.
   useEffect(() => {
@@ -115,7 +152,7 @@ export const ChatWindow = (p: ChatWindowProps) => {
   // chat lines as "Name (time): body").
   const transcript = (): string =>
     chat.messages
-      .map((m) => (m.kind === 'system' ? `* ${m.text}` : `${m.mine ? p.myName : contact.name} ${m.time}: ${m.body}`))
+      .map((m) => (m.kind === 'system' ? `* ${m.text}` : `${m.mine ? p.myName : contact.name} ${m.time}: ${m.image ? '[Picture]' : m.body}`))
       .join('\n');
 
   const saveConversation = (): void => {
@@ -161,6 +198,7 @@ export const ChatWindow = (p: ChatWindowProps) => {
       label: 'Actions',
       access: 'A',
       items: [
+        { kind: 'item', label: 'Send a Picture…', onClick: pickImages },
         { kind: 'item', label: 'Send a Nudge', onClick: p.onNudge },
         { kind: 'item', label: 'Send a Wink', onClick: p.onWink },
         { kind: 'separator' },
@@ -242,9 +280,19 @@ export const ChatWindow = (p: ChatWindowProps) => {
         <div className="msn-toolbtn" onClick={p.onAddContact} title="Invite someone" style={BIG_BTN}>
           <img src={inviteIcon} style={BIG_ICON} alt="" /> Invite
         </div>
-        <div className="msn-toolbtn" title="Send files" style={BIG_BTN}>
-          <img src={sendFilesIcon} style={BIG_ICON} alt="" /> Send Files
+        <div className="msn-toolbtn" onClick={pickImages} title="Send a picture" style={BIG_BTN}>
+          <img src={sendFilesIcon} style={BIG_ICON} alt="" /> Send Images
         </div>
+        {/* image-only picker, shared by the toolbar button and the Actions menu;
+            on mobile this surfaces the camera and photo library */}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={onFilesChosen}
+          style={{ display: 'none' }}
+        />
         <div style={SEP} />
         <div className="msn-toolbtn" title="Start a video call" style={BIG_BTN}>
           <img src={videoIcon} style={BIG_ICON} alt="" /> Video
@@ -321,7 +369,7 @@ export const ChatWindow = (p: ChatWindowProps) => {
                     {m.mine && m.delivery === 'sending' && <span style={{ color: '#aaa', fontWeight: 'normal' }}> · Sending…</span>}
                     {m.mine && m.delivery === 'failed' && (
                       <span
-                        onClick={() => p.onResend(m.body)}
+                        onClick={() => p.onResend(m.body, m.image === true)}
                         title="Message not delivered — click to try again"
                         style={{ color: '#c8401a', fontWeight: 'normal', cursor: 'pointer' }}
                       >
@@ -330,7 +378,16 @@ export const ChatWindow = (p: ChatWindowProps) => {
                     )}
                   </div>
                   <div style={{ color: 'var(--msn-color)', paddingLeft: 8, wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>
-                    <RichText text={m.body} size={18} />
+                    {m.image ? (
+                      <img
+                        src={m.body}
+                        alt="Shared picture"
+                        onClick={() => setZoom(m.body)}
+                        style={{ ...PHOTO, opacity: m.delivery === 'sending' ? 0.6 : 1 }}
+                      />
+                    ) : (
+                      <RichText text={m.body} size={18} />
+                    )}
                   </div>
                 </div>
               ),
@@ -395,6 +452,7 @@ export const ChatWindow = (p: ChatWindowProps) => {
               value={chat.draft}
               onChange={(e) => p.onDraft(e.target.value)}
               onKeyDown={p.onKeyDown}
+              onPaste={onPaste}
               placeholder="Type a message"
               style={{
                 flex: 1,
@@ -458,6 +516,16 @@ export const ChatWindow = (p: ChatWindowProps) => {
           </div>
         )}
       </div>
+
+      {/* picture lightbox — tap anywhere to dismiss */}
+      {zoom && (
+        <div
+          onClick={() => setZoom(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,.82)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out', padding: 'max(16px, var(--safe-top)) 16px' }}
+        >
+          <img src={zoom} alt="Shared picture" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 3, boxShadow: '0 8px 40px rgba(0,0,0,.7)' }} />
+        </div>
+      )}
 
       {/* wink overlay */}
       {chat.winkOn && (

@@ -9,8 +9,9 @@ bars, the butterfly, the glossy presence dots and the real Messenger sounds.
 
 Sign in with a Nostr key, drag your buddy list and conversation windows around
 the desktop, add contacts by `npub`/NIP-05, send encrypted messages (typed `:)`
-`(L)` `(Y)` codes render as the **real MSN emoticons**), and fire off **Nudges**
-and **Winks** that travel to the other person over the wire.
+`(L)` `(Y)` codes render as the **real MSN emoticons**), share **pictures**
+(pick one, or just paste from the clipboard), and fire off **Nudges** and
+**Winks** that travel to the other person over the wire.
 
 ## MSN feature → Nostr mapping
 
@@ -26,6 +27,7 @@ and **Winks** that travel to the other person over the wire.
 | Conversation | **NIP-17** gift-wrapped private DM (kind 14 in a kind-1059 wrap) |
 | Talking to a legacy client | also decrypts inbound **NIP-04** (kind 4) |
 | Nudge / Wink | a DM carrying a private control marker, rendered as the effect |
+| Sharing a picture | the image, downscaled to a small JPEG `data:` URL, in the same gift-wrapped DM (pick or paste) |
 | "…is writing a message" | an **ephemeral** kind-20817 ping (relays forward but never store it) |
 | Connection settings | the relay manager (the five most popular relays by default) |
 
@@ -122,7 +124,8 @@ src/
     relays.ts       # the 5 default relays + URL normalisation
     keys.ts         # pure: key gen/import, npub/nsec, avatar + handle derivation
     profiles.ts     # pure: kind-0 metadata parse/serialise
-    wire.ts         # pure: the Nudge/Wink control-marker codec
+    wire.ts         # pure: the Nudge/Wink/picture control-marker codec
+    images.ts       # downscale + JPEG-compress a picked/pasted picture to a small data URL
     identity.ts     # localStorage: identities, active account, relay set
     storage.ts      # never-throwing localStorage JSON helpers
     client.ts       # NostrClient — owns the relay pool, subs, encrypt/decrypt

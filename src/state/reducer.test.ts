@@ -420,3 +420,43 @@ describe('reducer — delivery tracking', () => {
     expect(after.chats).toEqual(s.chats);
   });
 });
+
+describe('reducer — image messages', () => {
+  const DATA_URL = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ==';
+  const chatMsg = (s: AppState, id: string) =>
+    chatOf(s, ALICE)?.messages.find((m) => m.kind === 'chat' && m.id === id);
+
+  it('flags an outgoing image and tracks its delivery like text', () => {
+    const s = run(signedIn(), {
+      type: 'MESSAGE_SENT', pubkey: ALICE, id: 'img1', at: 3000, time: '(9:09 PM)', payload: { kind: 'image', body: DATA_URL },
+    });
+    expect(chatMsg(s, 'img1')).toMatchObject({ mine: true, image: true, body: DATA_URL, delivery: 'sending' });
+  });
+
+  it('flips an image to "sent" on relay confirmation', () => {
+    const s = run(signedIn(),
+      { type: 'MESSAGE_SENT', pubkey: ALICE, id: 'img1', at: 3000, time: '(9:09 PM)', payload: { kind: 'image', body: DATA_URL } },
+      { type: 'MESSAGE_DELIVERY', id: 'img1', ok: true },
+    );
+    expect(chatMsg(s, 'img1')).toMatchObject({ image: true, delivery: 'sent' });
+  });
+
+  it('records an inbound image and flashes it unread', () => {
+    const s = run(signedIn(),
+      { type: 'OPEN_CHAT', pubkey: ALICE },
+      { type: 'FOCUS_CHAT', pubkey: BOB }, // push ALICE to the background so it flashes
+      { type: 'MESSAGE_RECEIVED', id: 'img2', partner: ALICE, mine: false, at: 4000, time: '(9:10 PM)', payload: { kind: 'image', body: DATA_URL }, live: true },
+    );
+    expect(chatMsg(s, 'img2')).toMatchObject({ mine: false, image: true, body: DATA_URL });
+    expect(unread(s, ALICE)).toBe(true);
+  });
+
+  it('leaves a half-typed draft intact when an image is sent', () => {
+    const s = run(signedIn(),
+      { type: 'OPEN_CHAT', pubkey: ALICE },
+      { type: 'SET_DRAFT', pubkey: ALICE, draft: 'brb typing' },
+      { type: 'MESSAGE_SENT', pubkey: ALICE, id: 'img3', at: 3000, time: '(9:09 PM)', payload: { kind: 'image', body: DATA_URL } },
+    );
+    expect(chatOf(s, ALICE)?.draft).toBe('brb typing');
+  });
+});

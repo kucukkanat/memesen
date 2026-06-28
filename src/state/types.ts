@@ -62,13 +62,14 @@ export type Message =
       readonly kind: 'chat';
       readonly id: string; // rumor/event id, used to dedupe relay echoes
       readonly mine: boolean;
-      readonly body: string;
+      readonly body: string; // for an image, the `data:image/...` URL
+      readonly image?: boolean; // true => `body` is an image data URL, rendered as a picture
       readonly time: string; // pre-formatted clock, e.g. "(9:07 PM)"
       readonly delivery?: Delivery; // set on our own sends; tracks confirmation
     });
 
 /** A DM payload as it crosses the reducer boundary (already decrypted). */
-export type WireKind = 'text' | 'nudge' | 'wink';
+export type WireKind = 'text' | 'nudge' | 'wink' | 'image';
 export interface IncomingPayload {
   readonly kind: WireKind;
   readonly body: string;

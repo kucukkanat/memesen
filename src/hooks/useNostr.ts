@@ -21,6 +21,8 @@ export interface NostrSink {
 
 export interface NostrCommands {
   readonly sendText: (pubkey: string, body: string) => void;
+  /** Send an already-processed image as its `data:` URL (see nostr/images). */
+  readonly sendImage: (pubkey: string, dataUrl: string) => void;
   readonly sendNudge: (pubkey: string) => void;
   readonly sendWink: (pubkey: string, glyph: string) => void;
   /** Tell a contact we're typing (throttled; safe to call on every keystroke). */
@@ -238,6 +240,13 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
     dispatch({ type: 'MESSAGE_SENT', pubkey, id, at: Math.floor(Date.now() / 1000), time: formatTime(Date.now()), payload: { kind: 'text', body } });
   }, [dispatch]);
 
+  const sendImage = useCallback((pubkey: string, dataUrl: string) => {
+    const client = clientRef.current;
+    if (!client) return;
+    const id = client.sendDm(pubkey, { kind: 'image', body: dataUrl });
+    dispatch({ type: 'MESSAGE_SENT', pubkey, id, at: Math.floor(Date.now() / 1000), time: formatTime(Date.now()), payload: { kind: 'image', body: dataUrl } });
+  }, [dispatch]);
+
   const sendNudge = useCallback((pubkey: string) => {
     const client = clientRef.current;
     if (!client) return;
@@ -311,5 +320,5 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
 
   const lookup = useCallback((pubkey: string) => clientRef.current?.fetchProfile(pubkey), []);
 
-  return { sendText, sendNudge, sendWink, notifyTyping, setStatus, setPsm, setName, setAvatar, addContact, removeContact, renameContact, lookup };
+  return { sendText, sendImage, sendNudge, sendWink, notifyTyping, setStatus, setPsm, setName, setAvatar, addContact, removeContact, renameContact, lookup };
 };

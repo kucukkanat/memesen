@@ -12,6 +12,7 @@ import { useIsMobile } from './hooks/useIsMobile';
 import { useNostr, type NostrSink } from './hooks/useNostr';
 import { loadActive, loadFont, loadIdentities, loadReadMarkers, loadRelays } from './nostr/identity';
 import { normaliseRelay } from './nostr/relays';
+import { processImage } from './nostr/images';
 import { avatarFor, createKeyPair, npubOf, pubkeyFromInput, secretFromInput, shortNpub } from './nostr/keys';
 import { isNip05, queryProfile } from 'nostr-tools/nip05';
 import { Taskbar } from './components/Taskbar';
@@ -192,6 +193,9 @@ export const App = () => {
           playSound('alert');
           pushToast({ title: c.name, body: 'sent you a Wink.', status: toastStatus, avatar: c.avatar });
           setTimeout(() => dispatch({ type: 'SET_WINK', pubkey: partner, on: false }), WINK_MS);
+        } else if (message.payload.kind === 'image') {
+          playSound('message');
+          pushToast({ title: c.name, body: 'sent you a picture.', status: toastStatus, avatar: c.avatar });
         } else {
           playSound('message');
           pushToast({ title: c.name, body: 'sent you a message.', status: toastStatus, avatar: c.avatar });
@@ -418,6 +422,19 @@ export const App = () => {
     playSound('send');
   }, [nostr]);
 
+  // Downscale/compress the picked or pasted picture, then send it. Heavy lifting
+  // (canvas) lives in nostr/images; we own the toasts so failures surface here.
+  const handleSendImage = useCallback(async (pubkey: string, file: File) => {
+    try {
+      const dataUrl = await processImage(file);
+      nostr.sendImage(pubkey, dataUrl);
+      playSound('send');
+    } catch {
+      playSound('alert');
+      pushAlert('warning', "Couldn't send picture", "That image couldn't be read. Try a different photo.");
+    }
+  }, [nostr, pushAlert]);
+
   const handleNudge = useCallback((pubkey: string) => {
     const last = nudgeAt.current[pubkey] ?? 0;
     if (Date.now() - last < NUDGE_COOLDOWN_MS) {
@@ -640,12 +657,13 @@ export const App = () => {
                 }
               }}
               onSend={() => handleSend(chat.pubkey)}
+              onSendImage={(file) => handleSendImage(chat.pubkey, file)}
               onNudge={() => handleNudge(chat.pubkey)}
               onWink={() => handleWink(chat.pubkey)}
               onToggleEmoji={() => dispatch({ type: 'TOGGLE_EMOJI', pubkey: chat.pubkey })}
               onPickEmoji={(code) => pickEmoji(chat.pubkey, code)}
               onOpenFont={() => setFontOpen(true)}
-              onResend={(body) => { nostr.sendText(chat.pubkey, body); playSound('send'); }}
+              onResend={(body, image) => { if (image) nostr.sendImage(chat.pubkey, body); else nostr.sendText(chat.pubkey, body); playSound('send'); }}
               onCopyKey={() => copy(npubOf(chat.pubkey), "contact's public key")}
               onCopyText={copy}
               onAbout={showAbout}
