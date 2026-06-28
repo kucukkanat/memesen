@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { CLOSE_BTN, SIDE_BORDERS, TITLE_BAR, TITLE_TEXT } from '../ui/chrome';
 import { Butterfly } from '../assets/icons';
@@ -28,6 +29,10 @@ const FOOTER_BAR: CSSProperties = {
   gap: 8,
 };
 
+// Mount order of open modals. ESC only dismisses the last-opened one, so stacked
+// dialogs peel off one at a time instead of all closing at once.
+const escStack: symbol[] = [];
+
 export interface ModalProps {
   readonly title: string;
   /** Body content. Supply its own padding — RelayManager wants none, forms want 14/16. */
@@ -47,6 +52,28 @@ export interface ModalProps {
  */
 export const Modal = (p: ModalProps) => {
   const mobile = useIsMobile();
+
+  // ESC closes the modal — the XP-standard "Cancel" gesture. A ref keeps the
+  // latest onClose so the listener can register once for the modal's lifetime
+  // (onClose is often an inline arrow, recreated each render). Guarding on the
+  // top of the stack means a keypress only dismisses the frontmost dialog.
+  const onCloseRef = useRef(p.onClose);
+  onCloseRef.current = p.onClose;
+  useEffect(() => {
+    const token = Symbol();
+    escStack.push(token);
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape' || escStack[escStack.length - 1] !== token) return;
+      e.stopPropagation();
+      onCloseRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      const i = escStack.indexOf(token);
+      if (i !== -1) escStack.splice(i, 1);
+    };
+  }, []);
 
   // On phones the dialog can't float at a fixed pixel width: it grows to (nearly)
   // the full width, caps its height to the visible viewport and lets the body

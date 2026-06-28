@@ -44,7 +44,6 @@ export const PromptDialog = (p: PromptDialogProps) => {
           onFocus={(e) => e.currentTarget.select()}
           onKeyDown={(e) => {
             if (e.key === 'Enter') submit();
-            else if (e.key === 'Escape') p.onCancel();
           }}
           placeholder={p.placeholder}
           style={{ width: '100%', padding: '4px 6px', border: '1px solid #7a93b8', fontFamily: 'Tahoma, sans-serif', fontSize: 11 }}

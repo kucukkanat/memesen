@@ -147,17 +147,29 @@ export const BuddyList = (p: BuddyListProps) => {
           <div style={{ position: 'absolute', bottom: -3, right: -3 }}><StatusIcon status={s.myStatus} size={15} /></div>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            onClick={p.onToggleStatusPicker}
-            onDoubleClick={p.onEditName}
-            title="Click to change status, double-click to rename"
-            style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', color: '#fff', fontWeight: 'bold', fontSize: 13, textShadow: '1px 1px 1px rgba(0,0,0,.3)' }}
-          >
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 150 }}>
-              <RichText text={s.myName || 'You'} size={16} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            {/* Status lives on the name + caret (single click); the name itself is
+                renamed via the explicit ✎ button, so the two stop fighting and the
+                rename is actually discoverable (the old double-click was invisible). */}
+            <span
+              onClick={p.onToggleStatusPicker}
+              title="Change your status"
+              style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, cursor: 'pointer', color: '#fff', fontWeight: 'bold', fontSize: 13, textShadow: '1px 1px 1px rgba(0,0,0,.3)' }}
+            >
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 132 }}>
+                <RichText text={s.myName || 'You'} size={16} />
+              </span>
+              <span style={{ fontSize: 9, fontWeight: 'normal', color: '#cfe0f8' }}>({me.label})</span>
+              <span style={{ fontSize: 8 }}>▼</span>
             </span>
-            <span style={{ fontSize: 9, fontWeight: 'normal', color: '#cfe0f8' }}>({me.label})</span>
-            <span style={{ fontSize: 8 }}>▼</span>
+            <span
+              onClick={p.onEditName}
+              title="Change your display name"
+              className="msn-rowx"
+              style={{ flexShrink: 0, color: '#dce9fb', fontSize: 12, cursor: 'pointer', padding: '0 3px' }}
+            >
+              ✎
+            </span>
           </div>
           <div
             onClick={p.onEditPsm}
