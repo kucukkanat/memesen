@@ -9,7 +9,7 @@ import type { Action, AppState, Profile, SelectableStatus } from '../state/types
 import { formatTime } from '../state/helpers';
 import { secretFromNsec } from '../nostr/keys';
 import { NostrClient, shouldAnnounce, type IncomingMessage } from '../nostr/client';
-import { loadReadMarkers, saveActive, saveIdentities, saveReadMarkers, saveRelays } from '../nostr/identity';
+import { loadReadMarkers, saveActive, saveFont, saveIdentities, saveReadMarkers, saveRelays } from '../nostr/identity';
 
 /** UX side effects the App layer owns (sounds, toasts) — fired at the I/O edge. */
 export interface NostrSink {
@@ -61,6 +61,10 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
   useEffect(
     () => saveRelays(state.relays.map((r) => ({ url: r.url, enabled: r.enabled }))),
     [state.relays],
+  );
+  useEffect(
+    () => saveFont({ fontFamily: state.fontFamily, fontColor: state.fontColor }),
+    [state.fontFamily, state.fontColor],
   );
 
   // Read markers: persist locally every change, and seed from local storage when

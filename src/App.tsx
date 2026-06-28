@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
+import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import type { AppState, Identity, SelectableStatus } from './state/types';
 import { WINK_GLYPHS } from './state/data';
 import { pick } from './state/helpers';
@@ -10,7 +10,7 @@ import { useDrag } from './hooks/useDrag';
 import { useResize } from './hooks/useResize';
 import { useIsMobile } from './hooks/useIsMobile';
 import { useNostr, type NostrSink } from './hooks/useNostr';
-import { loadActive, loadIdentities, loadReadMarkers, loadRelays } from './nostr/identity';
+import { loadActive, loadFont, loadIdentities, loadReadMarkers, loadRelays } from './nostr/identity';
 import { normaliseRelay } from './nostr/relays';
 import { avatarFor, createKeyPair, npubOf, pubkeyFromInput, secretFromInput, shortNpub } from './nostr/keys';
 import { isNip05, queryProfile } from 'nostr-tools/nip05';
@@ -25,6 +25,7 @@ import { AddContact } from './components/AddContact';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { PromptDialog } from './components/PromptDialog';
 import { ChangePicture } from './components/ChangePicture';
+import { FontPicker } from './components/FontPicker';
 import { ShareContact } from './components/ShareContact';
 import { InviteDialog } from './components/InviteDialog';
 import { ToastStack } from './components/Toasts';
@@ -52,7 +53,7 @@ interface PromptState {
 // comes back already signed-in (no flash of the sign-in screen) and the
 // persistence effects write back the same data instead of clobbering it.
 const bootState = (): AppState => {
-  const base = initialState(Date.now());
+  const base = { ...initialState(Date.now()), ...loadFont() };
   const identities = loadIdentities();
   const relays = loadRelays().map((r) => ({ ...r, status: 'connecting' as const }));
   const active = loadActive();
@@ -93,6 +94,8 @@ export const App = () => {
   // Account-portability dialogs (move/back up an account; scan/paste to import).
   const [exportOpen, setExportOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  // The message-font / colour picker (opened from the chat window's "A" button).
+  const [fontOpen, setFontOpen] = useState(false);
   // A pubkey pulled from an `?add=` invite link, pending the user's confirmation.
   const [pendingInvite, setPendingInvite] = useState<string | null>(null);
   // A contact awaiting delete confirmation in the XP-style message box.
@@ -455,6 +458,8 @@ export const App = () => {
 
   return (
     <div
+      // The chosen message font/colour ride down as CSS custom properties so the
+      // contact list, chat history and message input can opt in with var(--msn-*).
       style={{
         position: 'relative',
         width: '100%',
@@ -462,7 +467,9 @@ export const App = () => {
         minHeight: mobile ? undefined : 780,
         overflow: 'hidden',
         background: 'linear-gradient(170deg,#2f6fd0 0%,#5a9be0 28%,#9fd06a 52%,#79b948 72%,#5f9a36 100%)',
-      }}
+        '--msn-font': state.fontFamily,
+        '--msn-color': state.fontColor,
+      } as CSSProperties}
     >
       <Taskbar
         now={state.now}
@@ -558,6 +565,7 @@ export const App = () => {
               onWink={() => handleWink(chat.pubkey)}
               onToggleEmoji={() => dispatch({ type: 'TOGGLE_EMOJI', pubkey: chat.pubkey })}
               onPickEmoji={(code) => pickEmoji(chat.pubkey, code)}
+              onOpenFont={() => setFontOpen(true)}
             />
           ))}
 
@@ -572,6 +580,18 @@ export const App = () => {
           )}
 
           {state.addContactOpen && <AddContact onAdd={addContact} onClose={() => dispatch({ type: 'TOGGLE_ADD_CONTACT' })} />}
+
+          {fontOpen && (
+            <FontPicker
+              fontFamily={state.fontFamily}
+              fontColor={state.fontColor}
+              onChoose={(fontFamily, fontColor) => {
+                dispatch({ type: 'SET_FONT', fontFamily, fontColor });
+                setFontOpen(false);
+              }}
+              onClose={() => setFontOpen(false)}
+            />
+          )}
 
           {state.changePictureOpen && (
             <ChangePicture

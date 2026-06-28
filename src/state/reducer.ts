@@ -4,6 +4,7 @@
 
 import type { Action, AppState, Chat, IncomingPayload, Message, Profile, RelayInfo } from './types';
 import { DEFAULT_AVATAR } from './data';
+import { DEFAULT_COLOR, DEFAULT_FONT } from '../ui/fonts';
 import { DEFAULT_RELAYS } from '../nostr/relays';
 import { displayName } from './view';
 
@@ -19,6 +20,8 @@ export const initialState = (now: number): AppState => ({
   myAvatar: DEFAULT_AVATAR,
   myStatus: 'online',
   signinStatus: 'online',
+  fontFamily: DEFAULT_FONT,
+  fontColor: DEFAULT_COLOR,
   relays: DEFAULT_RELAYS.map((url) => ({ url, enabled: true, status: 'connecting' as const })),
   follows: [],
   petnames: {},
@@ -62,8 +65,8 @@ const newChat = (pubkey: string, z: number, index: number): Chat => ({
   z,
   top: 70 + index * 26,
   left: 60 + index * 30,
-  width: 452,
-  height: 470,
+  width: 470,
+  height: 504,
 });
 
 // Keep the transcript chronological: relays replay backlog out of order and
@@ -213,6 +216,8 @@ export const reducer = (state: AppState, action: Action): AppState => {
       return { ...state, myPsm: action.psm };
     case 'SET_MY_NAME':
       return { ...state, myName: action.name };
+    case 'SET_FONT':
+      return { ...state, fontFamily: action.fontFamily, fontColor: action.fontColor };
     case 'SET_AVATAR':
       return {
         ...state,

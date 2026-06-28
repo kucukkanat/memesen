@@ -9,29 +9,49 @@ import { Butterfly, StatusIcon } from '../assets/icons';
 import { Avatar } from '../assets/avatars';
 import { Emoticon, EMOTICON_LIST, RichText } from '../assets/emoticons';
 import { useIsMobile, MOBILE_NAV_H } from '../hooks/useIsMobile';
+import msnLogo from '../assets/msn/ui/msn-logo.png';
 import nudgeIcon from '../assets/msn/toolbar/nudge.png';
 import winkIcon from '../assets/msn/toolbar/wink.png';
 import inviteIcon from '../assets/msn/toolbar/invite.png';
 import sendFilesIcon from '../assets/msn/toolbar/send.png';
 import videoIcon from '../assets/msn/toolbar/video.png';
 import voiceIcon from '../assets/msn/toolbar/voice.png';
+import voiceClipIcon from '../assets/msn/toolbar/voice-clip.png';
 import gamesIcon from '../assets/msn/toolbar/games.png';
 import activitiesIcon from '../assets/msn/toolbar/activities.png';
 
-const TOOL_BTN: CSSProperties = {
+// The big top action toolbar (Invite · Send Files · Video · Voice · Activities ·
+// Games): a large icon with a small caption underneath, exactly as MSN 7.
+const BIG_BTN: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: 1,
+  padding: '2px 7px',
+  borderRadius: 3,
+  border: '1px solid transparent',
+  cursor: 'pointer',
+  color: '#1a3a6a',
+  fontSize: 9,
+  whiteSpace: 'nowrap',
+};
+const BIG_ICON: CSSProperties = { width: 24, height: 24 };
+
+// The little formatting strip that sits just above the input box.
+const FMT_BTN: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  gap: 4,
-  padding: '3px 8px',
-  border: '1px solid #b9c8de',
-  background: 'linear-gradient(180deg,#fff,#eef3fb)',
+  gap: 3,
+  padding: '2px 5px',
   borderRadius: 3,
+  border: '1px solid transparent',
   cursor: 'pointer',
   color: '#1a4a9c',
   fontSize: 10,
   whiteSpace: 'nowrap',
 };
-const ICON_BTN: CSSProperties = { ...TOOL_BTN, padding: '3px 6px', color: '#33476a' };
+const FMT_ICON: CSSProperties = { width: 15, height: 15, verticalAlign: 'middle' };
+const SEP: CSSProperties = { width: 1, alignSelf: 'stretch', margin: '2px 3px', background: '#c4d2e6' };
 
 export interface ChatWindowProps {
   readonly chat: Chat;
@@ -53,18 +73,17 @@ export interface ChatWindowProps {
   readonly onWink: () => void;
   readonly onToggleEmoji: () => void;
   readonly onPickEmoji: (code: string) => void;
+  readonly onOpenFont: () => void;
 }
 
 const DisplayPicture = ({ pic, status, label }: { pic: string; status: StatusKey; label: string }) => (
   <div style={{ textAlign: 'center' }}>
-    <Avatar pic={pic} size={62} status={status} style={{ margin: '0 auto' }} />
-    <div style={{ color: '#2a4a78', fontSize: 9, marginTop: 3, maxWidth: 70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+    <Avatar pic={pic} size={64} status={status} style={{ margin: '0 auto' }} />
+    <div style={{ color: '#2a4a78', fontSize: 9, marginTop: 3, maxWidth: 78, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
       <RichText text={label} size={12} />
     </div>
   </div>
 );
-
-const TBAR_ICON: CSSProperties = { width: 16, height: 16, verticalAlign: 'middle' };
 
 export const ChatWindow = (p: ChatWindowProps) => {
   const { chat, contact, inContacts } = p;
@@ -119,37 +138,50 @@ export const ChatWindow = (p: ChatWindowProps) => {
         <div onClick={p.onClose} style={{ ...CLOSE_BTN, width: mobile ? 26 : 19, height: mobile ? 22 : 17, fontSize: mobile ? 12 : 10 }}>✕</div>
       </div>
 
-      {/* menu */}
-      <div style={{ ...MENU_BAR, flexShrink: 0 }}>
+      {/* menu — with the msn wordmark parked at the far right, as in the original */}
+      <div style={{ ...MENU_BAR, flexShrink: 0, alignItems: 'center' }}>
         <span className="msn-link"><u>F</u>ile</span>
         <span className="msn-link"><u>E</u>dit</span>
         <span className="msn-link"><u>A</u>ctions</span>
         <span className="msn-link"><u>T</u>ools</span>
         <span className="msn-link"><u>H</u>elp</span>
+        <span style={{ flex: 1 }} />
+        <img src={msnLogo} alt="msn" height={15} draggable={false} style={{ verticalAlign: 'middle', opacity: 0.95 }} />
       </div>
 
-      {/* contact strip */}
+      {/* big action toolbar */}
       <div
         style={{
           ...SIDE_BORDERS,
           flexShrink: 0,
-          background: 'linear-gradient(180deg,#eaf3ff,#cfe0f6)',
-          padding: '5px 10px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
+          background: 'linear-gradient(180deg,#fbfdff,#dbe7f7)',
           borderBottom: '1px solid #9bb0d0',
+          display: 'flex',
+          alignItems: 'flex-start',
+          padding: '4px 4px 3px',
+          gap: 1,
+          overflowX: 'auto',
         }}
       >
-        <div style={{ position: 'relative', flexShrink: 0, width: 24, height: 24 }}>
-          <Avatar pic={contact.avatar} size={24} />
-          <span style={{ position: 'absolute', bottom: -3, right: -3 }}><StatusIcon status={contact.status} size={11} /></span>
+        <div className="msn-toolbtn" onClick={p.onAddContact} title="Invite someone" style={BIG_BTN}>
+          <img src={inviteIcon} style={BIG_ICON} alt="" /> Invite
         </div>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ color: '#0a3a8c', fontWeight: 'bold' }}>
-            To: <RichText text={contact.name} size={14} /> <span style={{ color: '#5a7398', fontWeight: 'normal' }}>&lt;{contact.handle}&gt;</span>
-          </div>
-          <div style={{ color: '#7a8aa0', fontSize: 10 }}>{info.label}</div>
+        <div className="msn-toolbtn" title="Send files" style={BIG_BTN}>
+          <img src={sendFilesIcon} style={BIG_ICON} alt="" /> Send Files
+        </div>
+        <div style={SEP} />
+        <div className="msn-toolbtn" title="Start a video call" style={BIG_BTN}>
+          <img src={videoIcon} style={BIG_ICON} alt="" /> Video
+        </div>
+        <div className="msn-toolbtn" title="Start a voice call" style={BIG_BTN}>
+          <img src={voiceIcon} style={BIG_ICON} alt="" /> Voice
+        </div>
+        <div style={SEP} />
+        <div className="msn-toolbtn" title="Activities" style={BIG_BTN}>
+          <img src={activitiesIcon} style={BIG_ICON} alt="" /> Activities
+        </div>
+        <div className="msn-toolbtn" title="Games" style={BIG_BTN}>
+          <img src={gamesIcon} style={BIG_ICON} alt="" /> Games
         </div>
       </div>
 
@@ -182,59 +214,124 @@ export const ChatWindow = (p: ChatWindowProps) => {
         </div>
       )}
 
-      {/* toolbar */}
-      <div
-        style={{
-          ...SIDE_BORDERS,
-          flexShrink: 0,
-          background: 'linear-gradient(180deg,#fefefe,#e8eef6)',
-          padding: '4px 8px',
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 4,
-          borderBottom: '1px solid #c8d4e6',
-        }}
-      >
-        <div className="msn-toolbtn" onClick={p.onToggleEmoji} title="Emoticons" style={TOOL_BTN}>
-          <Emoticon code=":)" size={16} /> Emoticons
-        </div>
-        <div className="msn-toolbtn" onClick={p.onNudge} title="Send a Nudge" style={TOOL_BTN}>
-          <img src={nudgeIcon} style={TBAR_ICON} alt="" /> Nudge
-        </div>
-        <div className="msn-toolbtn" onClick={p.onWink} title="Send a Wink" style={TOOL_BTN}>
-          <img src={winkIcon} style={TBAR_ICON} alt="" /> Winks
-        </div>
-        <div className="msn-toolbtn" title="Invite someone" style={ICON_BTN}><img src={inviteIcon} style={TBAR_ICON} alt="" /></div>
-        <div className="msn-toolbtn" title="Send files" style={ICON_BTN}><img src={sendFilesIcon} style={TBAR_ICON} alt="" /></div>
-        <div className="msn-toolbtn" title="Webcam" style={ICON_BTN}><img src={videoIcon} style={TBAR_ICON} alt="" /></div>
-        <div className="msn-toolbtn" title="Voice clip" style={ICON_BTN}><img src={voiceIcon} style={TBAR_ICON} alt="" /></div>
-        <div className="msn-toolbtn" title="Activities" style={ICON_BTN}><img src={activitiesIcon} style={TBAR_ICON} alt="" /></div>
-        <div className="msn-toolbtn" title="Games" style={ICON_BTN}><img src={gamesIcon} style={TBAR_ICON} alt="" /></div>
-      </div>
-
-      {/* transcript + display pictures (flexes to absorb the window's height) */}
+      {/* content: message column on the left, the two display pictures down the
+          right edge spanning the full height — exactly the MSN split. */}
       <div style={{ ...SIDE_BORDERS, flex: 1, minHeight: 0, display: 'flex', background: '#fff' }}>
-        <div ref={logRef} className="msn-scroll" style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', padding: '8px 10px' }}>
-          {chat.messages.map((m, i) =>
-            m.kind === 'system' ? (
-              <div key={i} style={{ textAlign: 'center', color: '#9a6a1a', fontSize: 10, margin: '6px 0', fontStyle: 'italic' }}>
-                {m.text}
-              </div>
-            ) : (
-              <div key={i} style={{ marginBottom: 7 }}>
-                <div style={{ color: m.mine ? '#1a5fc8' : '#c8401a', fontWeight: 'bold', fontSize: 10 }}>
-                  <RichText text={m.mine ? p.myName : contact.name} size={13} /> <span style={{ color: '#aaa', fontWeight: 'normal' }}>{m.time}</span>
+        {/* left: To header → transcript → format strip → input */}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          {/* To: header inside the white area */}
+          <div style={{ flexShrink: 0, padding: '4px 10px', borderBottom: '1px solid #e2e9f3', display: 'flex', alignItems: 'baseline', gap: 6 }}>
+            <span style={{ color: '#5a7398' }}>To:</span>
+            <span style={{ color: '#0a3a8c', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <RichText text={contact.name} size={13} /> <span style={{ color: '#7a8aa0', fontWeight: 'normal' }}>&lt;{contact.handle}&gt;</span>
+            </span>
+            <span style={{ flex: 1 }} />
+            <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#7a8aa0', fontSize: 10, flexShrink: 0 }}>
+              <StatusIcon status={contact.status} size={11} /> {info.label}
+            </span>
+          </div>
+
+          {/* transcript */}
+          <div ref={logRef} className="msn-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 10px', fontFamily: 'var(--msn-font)' }}>
+            {chat.messages.map((m, i) =>
+              m.kind === 'system' ? (
+                <div key={i} style={{ textAlign: 'center', color: '#9a6a1a', fontSize: 10, margin: '6px 0', fontStyle: 'italic' }}>
+                  {m.text}
                 </div>
-                <div style={{ color: '#222', paddingLeft: 8, wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>
-                  <RichText text={m.body} size={18} />
+              ) : (
+                <div key={i} style={{ marginBottom: 7 }}>
+                  <div style={{ color: m.mine ? '#1a5fc8' : '#c8401a', fontWeight: 'bold', fontSize: 10 }}>
+                    <RichText text={m.mine ? p.myName : contact.name} size={13} /> <span style={{ color: '#aaa', fontWeight: 'normal' }}>{m.time}</span>
+                  </div>
+                  <div style={{ color: 'var(--msn-color)', paddingLeft: 8, wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>
+                    <RichText text={m.body} size={18} />
+                  </div>
                 </div>
-              </div>
-            ),
+              ),
+            )}
+          </div>
+
+          {/* typing indicator */}
+          <div style={{ flexShrink: 0, padding: '0 10px', height: 14, color: '#888', fontSize: 10, fontStyle: 'italic' }}>
+            {chat.typing ? `${contact.name} is writing a message...` : ''}
+          </div>
+
+          {/* emoticon palette */}
+          {chat.emojiOpen && (
+            <div style={{ flexShrink: 0, background: '#fff', borderTop: '1px solid #c8d4e6', padding: '6px 8px', display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+              {EMOTICON_LIST.map((e) => (
+                <div
+                  key={e.code}
+                  className="msn-toolbtn"
+                  onClick={() => pickEmoji(e.code)}
+                  title={`${e.name}  ${e.code}`}
+                  style={{ width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '1px solid transparent', borderRadius: 3 }}
+                >
+                  <Emoticon code={e.code} size={20} />
+                </div>
+              ))}
+            </div>
           )}
+
+          {/* formatting strip just above the input */}
+          <div
+            style={{
+              flexShrink: 0,
+              background: 'linear-gradient(180deg,#fbfdff,#e9f0fa)',
+              borderTop: '1px solid #d6e0ee',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+              padding: '3px 6px',
+            }}
+          >
+            <div className="msn-toolbtn" onClick={p.onOpenFont} title="Change my message font" style={{ ...FMT_BTN, fontFamily: 'Georgia, serif', fontWeight: 'bold', fontSize: 13, color: '#1a4a9c', padding: '0 6px' }}>A</div>
+            <div className="msn-toolbtn" onClick={p.onToggleEmoji} title="Emoticons" style={FMT_BTN}>
+              <Emoticon code=":)" size={15} />
+            </div>
+            <div style={SEP} />
+            <div className="msn-toolbtn" title="Record a voice clip" style={FMT_BTN}>
+              <img src={voiceClipIcon} style={FMT_ICON} alt="" /> Voice Clip
+            </div>
+            <div style={SEP} />
+            <div className="msn-toolbtn" onClick={p.onNudge} title="Send a Nudge" style={FMT_BTN}>
+              <img src={nudgeIcon} style={FMT_ICON} alt="" /> Nudge
+            </div>
+            <div className="msn-toolbtn" onClick={p.onWink} title="Send a Wink" style={FMT_BTN}>
+              <img src={winkIcon} style={FMT_ICON} alt="" /> Winks
+            </div>
+          </div>
+
+          {/* input + the Send / Search button column */}
+          <div style={{ flexShrink: 0, background: '#fff', padding: '7px 8px 8px', display: 'flex', gap: 7, alignItems: 'stretch' }}>
+            <textarea
+              ref={inputRef}
+              value={chat.draft}
+              onChange={(e) => p.onDraft(e.target.value)}
+              onKeyDown={p.onKeyDown}
+              placeholder="Type a message"
+              style={{
+                flex: 1,
+                height: 50,
+                resize: 'none',
+                padding: '5px 6px',
+                border: '1px solid #9bb0d0',
+                fontFamily: 'var(--msn-font)',
+                fontSize: 11,
+                color: 'var(--msn-color)',
+              }}
+            />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 66, flexShrink: 0 }}>
+              <button onClick={p.onSend} style={{ ...GREEN_BTN, flex: 1 }}>Send</button>
+              <button title="Find a message" style={{ ...GREEN_BTN, flex: 1, color: '#33476a', background: 'linear-gradient(180deg,#fdfefe,#dfe8f4)', border: '1px solid #9bb0d0' }}>Search</button>
+            </div>
+          </div>
         </div>
+
+        {/* right: display pictures down the full height (contact on top, me below) */}
         <div
           style={{
-            width: 84,
+            width: 92,
             flexShrink: 0,
             background: 'linear-gradient(180deg,#dfeafa,#c2d6ef)',
             borderLeft: '1px solid #a8bcd8',
@@ -242,65 +339,12 @@ export const ChatWindow = (p: ChatWindowProps) => {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '9px 0',
+            padding: '10px 0',
           }}
         >
           <DisplayPicture pic={contact.avatar} status={contact.status} label={contact.name} />
           <DisplayPicture pic={p.myAvatar} status="online" label={p.myName} />
         </div>
-      </div>
-
-      {/* typing indicator */}
-      <div style={{ ...SIDE_BORDERS, flexShrink: 0, background: '#fbfcfe', padding: '1px 10px', height: 15, color: '#888', fontSize: 10, fontStyle: 'italic' }}>
-        {chat.typing ? `${contact.name} is writing a message...` : ''}
-      </div>
-
-      {/* emoticon palette */}
-      {chat.emojiOpen && (
-        <div style={{ ...SIDE_BORDERS, flexShrink: 0, background: '#fff', borderTop: '1px solid #c8d4e6', padding: '6px 8px', display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-          {EMOTICON_LIST.map((e) => (
-            <div
-              key={e.code}
-              className="msn-toolbtn"
-              onClick={() => pickEmoji(e.code)}
-              title={`${e.name}  ${e.code}`}
-              style={{
-                width: 26,
-                height: 26,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                border: '1px solid transparent',
-                borderRadius: 3,
-              }}
-            >
-              <Emoticon code={e.code} size={20} />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* input */}
-      <div style={{ ...SIDE_BORDERS, flexShrink: 0, background: '#fff', padding: '7px 8px', display: 'flex', gap: 7, alignItems: 'flex-end' }}>
-        <textarea
-          ref={inputRef}
-          value={chat.draft}
-          onChange={(e) => p.onDraft(e.target.value)}
-          onKeyDown={p.onKeyDown}
-          placeholder="Type a message"
-          style={{
-            flex: 1,
-            height: 46,
-            resize: 'none',
-            padding: '5px 6px',
-            border: '1px solid #9bb0d0',
-            fontFamily: 'Tahoma, sans-serif',
-            fontSize: 11,
-            color: '#222',
-          }}
-        />
-        <button onClick={p.onSend} style={{ ...GREEN_BTN, padding: '6px 16px', height: 46 }}>Send</button>
       </div>
 
       {/* footer */}

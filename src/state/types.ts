@@ -112,6 +112,9 @@ export interface AppState {
   readonly myAvatar: string;
   readonly myStatus: StatusKey;
   readonly signinStatus: SelectableStatus;
+  /** Chosen message-text style — a CSS `font-family` stack and a hex colour. */
+  readonly fontFamily: string;
+  readonly fontColor: string;
 
   // network
   readonly relays: readonly RelayInfo[];
@@ -163,6 +166,7 @@ export type Action =
   | { type: 'SET_PSM'; psm: string }
   | { type: 'SET_MY_NAME'; name: string }
   | { type: 'SET_AVATAR'; picture: string }
+  | { type: 'SET_FONT'; fontFamily: string; fontColor: string }
   // network data
   | { type: 'PROFILE_LOADED'; pubkey: string; profile: Profile }
   | { type: 'FOLLOWS_LOADED'; entries: ReadonlyArray<{ pubkey: string; petname: string }> }

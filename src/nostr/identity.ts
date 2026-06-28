@@ -4,11 +4,19 @@
 
 import type { Identity, StoredRelay } from '../state/types';
 import { DEFAULT_RELAYS } from './relays';
+import { DEFAULT_COLOR, DEFAULT_FONT } from '../ui/fonts';
 import { readJson, writeJson } from './storage';
+
+/** The persisted message-text style (font stack + hex colour). */
+export interface StoredFont {
+  readonly fontFamily: string;
+  readonly fontColor: string;
+}
 
 const KEY_IDENTITIES = 'memesen.identities';
 const KEY_ACTIVE = 'memesen.active';
 const KEY_RELAYS = 'memesen.relays';
+const KEY_FONT = 'memesen.font';
 // Read markers are per-account (localStorage is shared across identities).
 const readKey = (pubkey: string): string => `memesen.read.${pubkey}`;
 
@@ -47,3 +55,13 @@ export const loadReadMarkers = (pubkey: string): Record<string, number> => {
 
 export const saveReadMarkers = (pubkey: string, markers: Readonly<Record<string, number>>): void =>
   writeJson(readKey(pubkey), markers);
+
+/** The chosen message-text style, falling back to the app defaults. */
+export const loadFont = (): StoredFont => {
+  const raw = readJson<Partial<StoredFont>>(KEY_FONT, {});
+  const fontFamily = typeof raw?.fontFamily === 'string' && raw.fontFamily ? raw.fontFamily : DEFAULT_FONT;
+  const fontColor = typeof raw?.fontColor === 'string' && raw.fontColor ? raw.fontColor : DEFAULT_COLOR;
+  return { fontFamily, fontColor };
+};
+
+export const saveFont = (font: StoredFont): void => writeJson(KEY_FONT, font);

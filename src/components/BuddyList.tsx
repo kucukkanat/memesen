@@ -62,7 +62,7 @@ const ContactRow = ({ contact, mobile, unread, onOpen, onRemove, onRename }: { c
       </div>
       <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {unread && <span title="New message" style={{ marginRight: 4 }}>✉️</span>}
-        <span style={{ color: unread ? '#0a3a8c' : offline ? '#666' : '#222', fontWeight: unread ? 'bold' : undefined }}><RichText text={contact.name} size={15} /></span>
+        <span style={{ color: unread ? '#0a3a8c' : offline ? '#666' : 'var(--msn-color)', fontWeight: unread ? 'bold' : undefined }}><RichText text={contact.name} size={15} /></span>
         {contact.psm && !offline && (
           <span style={{ color: '#8a93a0', fontStyle: 'italic' }}> - <RichText text={contact.psm} size={13} /></span>
         )}
@@ -193,7 +193,7 @@ export const BuddyList = (p: BuddyListProps) => {
       </div>
 
       {/* contact list */}
-      <div className="msn-scroll" style={{ ...SIDE_BORDERS, background: '#fff', borderBottom: '1px solid #06387c', height: mobile ? 'auto' : 300, flex: mobile ? '1 1 0' : undefined, minHeight: 0, overflowY: 'auto' }}>
+      <div className="msn-scroll" style={{ ...SIDE_BORDERS, background: '#fff', borderBottom: '1px solid #06387c', height: mobile ? 'auto' : 300, flex: mobile ? '1 1 0' : undefined, minHeight: 0, overflowY: 'auto', fontFamily: 'var(--msn-font)' }}>
         <div onClick={() => p.onToggleGroup('online')} style={{ ...GROUP_HEADER, borderBottom: '1px solid #dce6f3' }}>
           <span style={{ fontSize: 8, width: 8 }}>{s.onlineGroupOpen ? '▼' : '▶'}</span> Online ({online.length})
         </div>
