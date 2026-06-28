@@ -186,7 +186,7 @@ export const BuddyList = (p: BuddyListProps) => {
         display: 'flex',
         flexDirection: 'column',
         boxShadow: '0 6px 26px rgba(0,0,0,.4)',
-        zIndex: 8,
+        zIndex: s.buddyZ,
       };
 
   return (

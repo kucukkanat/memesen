@@ -188,6 +188,17 @@ describe('reducer — chat windows', () => {
     expect(unread(s, ALICE)).toBe(false);
   });
 
+  it('FOCUS_BUDDY raises the buddy list above the front-most chat', () => {
+    const s = run(signedIn(),
+      { type: 'OPEN_CHAT', pubkey: ALICE },
+      { type: 'OPEN_CHAT', pubkey: BOB }, // bob is now the front-most window
+    );
+    expect(s.buddyZ).toBeLessThan(chatOf(s, BOB)!.z); // pinned behind to start
+    const focused = reducer(s, { type: 'FOCUS_BUDDY' });
+    expect(focused.buddyZ).toBeGreaterThan(chatOf(focused, BOB)!.z);
+    expect(focused.buddyZ).toBe(focused.zTop);
+  });
+
   it('closing a window keeps the transcript, just hides it', () => {
     const s = run(signedIn(),
       { type: 'OPEN_CHAT', pubkey: ALICE },

@@ -38,6 +38,7 @@ export const initialState = (now: number): AppState => ({
   chats: [],
   zTop: 30,
   now,
+  buddyZ: 8,
   buddyTop: 18,
   buddyLeft: null,
   buddyWidth: 272,
@@ -321,6 +322,12 @@ export const reducer = (state: AppState, action: Action): AppState => {
       const existing = state.chats.find((c) => c.pubkey === action.pubkey);
       const lastReadAt = existing ? markRead(state.lastReadAt, action.pubkey, newestAt(existing)) : state.lastReadAt;
       return { ...state, zTop: z, lastReadAt, chats: mapChat(state, action.pubkey, (c) => ({ ...c, z, open: true })) };
+    }
+    case 'FOCUS_BUDDY': {
+      // Raise the buddy list above the floating chat windows. Shares the same
+      // `zTop` counter as the chats so relative stacking stays consistent.
+      const z = state.zTop + 1;
+      return { ...state, zTop: z, buddyZ: z };
     }
     case 'MOVE_CHAT':
       return { ...state, chats: mapChat(state, action.pubkey, (c) => ({ ...c, top: action.top, left: action.left })) };

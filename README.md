@@ -80,6 +80,26 @@ Your `npub` is the only thing safe to share — the key, phrase and QR are not.
 > NIP-49 passphrase encryption or NIP-07 extension signing is a localized change
 > in `src/nostr/`.)
 
+## Window switcher (Alt+Tab)
+
+On the desktop layout you can flick between open conversations the way you'd
+switch apps, with a 3D cover-flow overlay of every window (the buddy list plus
+each open chat, each showing the contact, status and last line):
+
+- **macOS** — hold **Option (⌥)** and tap **Tab** (`⇧` to go back). macOS leaves
+  Alt+Tab unbound, so it's free to use.
+- **Windows / Linux** — hold **Alt** and tap **`` ` ``** (backtick, the key right
+  above Tab). Their Alt+Tab belongs to the OS switcher and Ctrl+Tab to the
+  browser's tab strip, so the cycle key shifts one row up to the unclaimed
+  backtick while keeping the same "hold Alt, tap the key above Tab" feel.
+
+Cards are ordered most-recently-used, so a quick tap-and-release toggles between
+the two windows you use most. While the overlay is up, arrow keys move the
+selection, **Esc** cancels, and releasing the modifier (or clicking a card)
+jumps to it. Lives in `hooks/useWindowSwitcher.ts` (the keyboard state machine,
+pure and headless) and `components/Switcher.tsx` (the carousel); the buddy list
+gains a `buddyZ` so "Contacts" can be raised above the chats on selection.
+
 ## Mobile & PWA
 
 The same app is touch-first on phones. Above 760px you get the authentic

@@ -15,6 +15,8 @@ import { normaliseRelay } from './nostr/relays';
 import { processImage } from './nostr/images';
 import { avatarFor, createKeyPair, npubOf, pubkeyFromInput, secretFromInput, shortNpub } from './nostr/keys';
 import { isNip05, queryProfile } from 'nostr-tools/nip05';
+import { useWindowSwitcher, type SwitcherWindow } from './hooks/useWindowSwitcher';
+import { Switcher } from './components/Switcher';
 import { Taskbar } from './components/Taskbar';
 import { SignIn } from './components/SignIn';
 import { ExportAccount } from './components/ExportAccount';
@@ -43,6 +45,16 @@ const WINK_MS = 1400;
 // connection banner for genuine outages rather than every transient flicker.
 const CONNECTION_GRACE_MS = 8_000;
 const CONN_TOAST_KEY = 'connection'; // the single, in-place connection banner
+const BUDDY_ID = '__buddy__'; // the buddy list's "home" entry in the switcher
+
+/** One-line transcript preview for the window switcher's cards. */
+const chatSnippet = (chat: AppState['chats'][number]): string => {
+  for (let i = chat.messages.length - 1; i >= 0; i--) {
+    const m = chat.messages[i];
+    if (m && m.kind === 'chat') return m.image ? '📷 Picture' : m.body;
+  }
+  return '';
+};
 
 /** A pending single-field text prompt, rendered by `PromptDialog`. */
 interface PromptState {
@@ -548,6 +560,43 @@ export const App = () => {
   const openChats = state.chats.filter((c) => c.open);
   const visibleChats = mobile ? openChats.filter((c) => c.pubkey === activeChat) : openChats;
 
+  // Alt+Tab switcher: the buddy list plus every open conversation, each as a
+  // card. Only on the desktop layout — mobile already switches via the nav.
+  const switcherWindows: readonly SwitcherWindow[] = useMemo(() => {
+    const buddy: SwitcherWindow = {
+      id: BUDDY_ID,
+      kind: 'buddy',
+      label: `${state.myName || 'Messenger'} - Messenger`,
+      status: state.myStatus,
+      avatar: state.myAvatar,
+      snippet: '',
+      unread: false,
+      z: state.buddyZ,
+    };
+    return [
+      buddy,
+      ...openChats.map((c): SwitcherWindow => {
+        const r = resolveContact(state, c.pubkey);
+        return { id: c.pubkey, kind: 'chat', label: r.name, status: r.status, avatar: r.avatar, snippet: chatSnippet(c), unread: isUnread(c, state.lastReadAt), z: c.z };
+      }),
+    ];
+  }, [state, openChats]);
+
+  const selectWindow = useCallback((id: string): void => {
+    if (id === BUDDY_ID) {
+      dispatch({ type: 'FOCUS_BUDDY' });
+      return;
+    }
+    dispatch({ type: 'FOCUS_CHAT', pubkey: id });
+    setActiveChat(id);
+  }, []);
+
+  const switcher = useWindowSwitcher({
+    enabled: state.screen === 'desktop' && !mobile,
+    windows: switcherWindows,
+    onSelect: selectWindow,
+  });
+
   return (
     <div
       data-testid="app-root"
@@ -776,6 +825,16 @@ export const App = () => {
           cancelLabel={null}
           onConfirm={() => setNotice(null)}
           onCancel={() => setNotice(null)}
+        />
+      )}
+
+      {switcher.active && (
+        <Switcher
+          items={switcher.items}
+          index={switcher.index}
+          isMac={switcher.isMac}
+          onHover={switcher.select}
+          onPick={switcher.pick}
         />
       )}
 

@@ -152,6 +152,12 @@ export interface AppState {
   readonly chats: readonly Chat[];
   readonly zTop: number;
   readonly now: number;
+  /**
+   * Stacking order of the buddy-list window, raised on focus (e.g. when the
+   * window switcher brings "Contacts" to the front) so it can float above the
+   * chat windows rather than being permanently pinned behind them.
+   */
+  readonly buddyZ: number;
   readonly buddyTop: number;
   /** `null` => anchored to the right edge. */
   readonly buddyLeft: number | null;
@@ -200,6 +206,7 @@ export type Action =
   | { type: 'OPEN_CHAT'; pubkey: string }
   | { type: 'CLOSE_CHAT'; pubkey: string }
   | { type: 'FOCUS_CHAT'; pubkey: string }
+  | { type: 'FOCUS_BUDDY' }
   | { type: 'MOVE_CHAT'; pubkey: string; top: number; left: number }
   | { type: 'RESIZE_CHAT'; pubkey: string; width: number; height: number }
   | { type: 'MOVE_BUDDY'; top: number; left: number }

@@ -90,6 +90,12 @@ body,
   51%, 100% { filter: brightness(1.45); }
 }
 
+/* Alt+Tab carousel fading/zooming in as the overlay mounts. */
+@keyframes msn-switcher-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
 .msn-taskbtn:hover { filter: brightness(1.12); }
 
 .msn-scroll::-webkit-scrollbar { width: 16px; }
