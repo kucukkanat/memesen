@@ -74,6 +74,8 @@ export interface ChatWindowProps {
   readonly onToggleEmoji: () => void;
   readonly onPickEmoji: (code: string) => void;
   readonly onOpenFont: () => void;
+  /** Re-send a message whose delivery failed (click the ⚠ marker). */
+  readonly onResend: (body: string) => void;
 }
 
 const DisplayPicture = ({ pic, status, label }: { pic: string; status: StatusKey; label: string }) => (
@@ -242,6 +244,16 @@ export const ChatWindow = (p: ChatWindowProps) => {
                 <div key={i} style={{ marginBottom: 7 }}>
                   <div style={{ color: m.mine ? '#1a5fc8' : '#c8401a', fontWeight: 'bold', fontSize: 10 }}>
                     <RichText text={m.mine ? p.myName : contact.name} size={13} /> <span style={{ color: '#aaa', fontWeight: 'normal' }}>{m.time}</span>
+                    {m.mine && m.delivery === 'sending' && <span style={{ color: '#aaa', fontWeight: 'normal' }}> · Sending…</span>}
+                    {m.mine && m.delivery === 'failed' && (
+                      <span
+                        onClick={() => p.onResend(m.body)}
+                        title="Message not delivered — click to try again"
+                        style={{ color: '#c8401a', fontWeight: 'normal', cursor: 'pointer' }}
+                      >
+                        {' '}· ⚠ Not delivered — Retry
+                      </span>
+                    )}
                   </div>
                   <div style={{ color: 'var(--msn-color)', paddingLeft: 8, wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>
                     <RichText text={m.body} size={18} />

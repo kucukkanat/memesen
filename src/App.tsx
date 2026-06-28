@@ -29,7 +29,7 @@ import { FontPicker } from './components/FontPicker';
 import { ShareContact } from './components/ShareContact';
 import { InviteDialog } from './components/InviteDialog';
 import { ToastStack } from './components/Toasts';
-import type { Toast } from './components/Toasts';
+import type { Toast, ToastInput, ToastSeverity } from './components/Toasts';
 
 const CLOCK_INTERVAL_MS = 20_000;
 const AUTO_AWAY_MS = 5 * 60_000; // MSN flipped you to Away after ~5 min idle.
@@ -37,6 +37,11 @@ const NUDGE_COOLDOWN_MS = 6_000; // "You may not send a Nudge that often."
 const TOAST_TTL_MS = 6_000;
 const SHAKE_MS = 900;
 const WINK_MS = 1400;
+// Wait this long with zero connected relays before crying wolf — the initial
+// connect and brief blips routinely clear well inside it, so this keeps the
+// connection banner for genuine outages rather than every transient flicker.
+const CONNECTION_GRACE_MS = 8_000;
+const CONN_TOAST_KEY = 'connection'; // the single, in-place connection banner
 
 /** A pending single-field text prompt, rendered by `PromptDialog`. */
 interface PromptState {
@@ -107,11 +112,24 @@ export const App = () => {
   const toastId = useRef(0);
   const nudgeAt = useRef<Record<string, number>>({});
 
-  const pushToast = useCallback((toast: Omit<Toast, 'id'>) => {
+  // Push a toast. A toast carrying a `key` replaces any existing one with the
+  // same key (so the connection banner updates in place); `ttl <= 0` makes it
+  // sticky until dismissed or replaced. Returns nothing — callers that need to
+  // clear a sticky toast use its key via `dismissToastKey`.
+  const pushToast = useCallback((toast: ToastInput, ttl = TOAST_TTL_MS) => {
     const id = ++toastId.current;
-    setToasts((ts) => [...ts, { ...toast, id }]);
-    setTimeout(() => setToasts((ts) => ts.filter((t) => t.id !== id)), TOAST_TTL_MS);
+    setToasts((ts) => [...ts.filter((t) => !toast.key || t.key !== toast.key), { ...toast, id }]);
+    if (ttl > 0) setTimeout(() => setToasts((ts) => ts.filter((t) => t.id !== id)), ttl);
   }, []);
+
+  // Reusable alert toaster (connection problems, errors, plain notices).
+  const pushAlert = useCallback(
+    (severity: ToastSeverity, title: string, body: string, opts?: { key?: string; ttl?: number }) =>
+      pushToast({ kind: 'alert', severity, title, body, ...(opts?.key ? { key: opts.key } : {}) }, opts?.ttl ?? TOAST_TTL_MS),
+    [pushToast],
+  );
+
+  const dismissToastKey = useCallback((key: string) => setToasts((ts) => ts.filter((t) => t.key !== key)), []);
 
   const toggleMute = useCallback(() => {
     setMutedState((m) => {
@@ -169,8 +187,13 @@ export const App = () => {
         playSound('online');
         pushToast({ title: c.name, body: 'has just signed in.', status: c.status === 'offline' ? 'online' : c.status, avatar: c.avatar });
       },
+      onSendFailed: (partner) => {
+        const c = resolveContact(stateRef.current, partner);
+        playSound('alert');
+        pushAlert('warning', 'Message not delivered', `Your message to ${c.name} couldn't be sent. Check your connection and try again.`);
+      },
     }),
-    [pushToast],
+    [pushToast, pushAlert],
   );
 
   const nostr = useNostr(state, dispatch, sink);
@@ -282,6 +305,42 @@ export const App = () => {
       document.title = 'MSN Messenger';
     };
   }, [state.chats, state.lastReadAt]);
+
+  // Connection health: warn (with a sticky MSN toaster) once every enabled relay
+  // has been disconnected past the grace window, and confirm recovery when one
+  // reconnects. Derived purely from the per-relay status the client heartbeats
+  // in, so it tracks the silent drop/reconnect cycles behind the scenes.
+  const connWarned = useRef(false);
+  const connTimer = useRef(0);
+  useEffect(() => {
+    if (state.screen !== 'desktop') {
+      window.clearTimeout(connTimer.current);
+      connTimer.current = 0;
+      if (connWarned.current) { connWarned.current = false; dismissToastKey(CONN_TOAST_KEY); }
+      return;
+    }
+    const enabled = state.relays.filter((r) => r.enabled);
+    if (enabled.length === 0) return; // every relay disabled on purpose — stay quiet
+    if (enabled.some((r) => r.status === 'connected')) {
+      window.clearTimeout(connTimer.current);
+      connTimer.current = 0;
+      if (connWarned.current) {
+        connWarned.current = false;
+        pushAlert('info', 'Connection restored', "You're back online.", { key: CONN_TOAST_KEY });
+      }
+      return;
+    }
+    // Nothing connected — arm the grace timer once; the dedup'd relay status
+    // keeps this effect stable so the countdown isn't perpetually reset.
+    if (connWarned.current || connTimer.current) return;
+    connTimer.current = window.setTimeout(() => {
+      connTimer.current = 0;
+      if (stateRef.current.screen !== 'desktop') return;
+      connWarned.current = true;
+      playSound('alert');
+      pushAlert('warning', 'Connection problem', 'Trying to reconnect to the messaging service…', { key: CONN_TOAST_KEY, ttl: 0 });
+    }, CONNECTION_GRACE_MS);
+  }, [state.relays, state.screen, pushAlert, dismissToastKey]);
 
   // --- identity actions ----------------------------------------------------
 
@@ -566,6 +625,7 @@ export const App = () => {
               onToggleEmoji={() => dispatch({ type: 'TOGGLE_EMOJI', pubkey: chat.pubkey })}
               onPickEmoji={(code) => pickEmoji(chat.pubkey, code)}
               onOpenFont={() => setFontOpen(true)}
+              onResend={(body) => { nostr.sendText(chat.pubkey, body); playSound('send'); }}
             />
           ))}
 

@@ -384,3 +384,39 @@ describe('reducer — typing indicator', () => {
     expect(chatOf(s, ALICE)?.typing).toBe(true);
   });
 });
+
+describe('reducer — delivery tracking', () => {
+  const sent = (id: string, body = 'hi'): Action => ({
+    type: 'MESSAGE_SENT', pubkey: ALICE, id, at: 2000, time: '(9:08 PM)', payload: { kind: 'text', body },
+  });
+  const chatBody = (s: AppState, id: string) =>
+    chatOf(s, ALICE)?.messages.find((m) => m.kind === 'chat' && m.id === id);
+
+  it('marks our own outgoing text as "sending" optimistically', () => {
+    const s = run(signedIn(), sent('m1'));
+    expect(chatBody(s, 'm1')).toMatchObject({ mine: true, delivery: 'sending' });
+  });
+
+  it('does not tag received messages with a delivery state', () => {
+    const s = run(signedIn(), text('r1', ALICE, 'yo'));
+    const m = chatBody(s, 'r1');
+    expect(m?.kind).toBe('chat');
+    expect(m && 'delivery' in m && m.delivery).toBeFalsy();
+  });
+
+  it('flips to "sent" when a relay confirms delivery', () => {
+    const s = run(signedIn(), sent('m1'), { type: 'MESSAGE_DELIVERY', id: 'm1', ok: true });
+    expect(chatBody(s, 'm1')).toMatchObject({ delivery: 'sent' });
+  });
+
+  it('flips to "failed" when every relay rejected it', () => {
+    const s = run(signedIn(), sent('m1'), { type: 'MESSAGE_DELIVERY', id: 'm1', ok: false });
+    expect(chatBody(s, 'm1')).toMatchObject({ delivery: 'failed' });
+  });
+
+  it('ignores a delivery update for an unknown message id', () => {
+    const s = run(signedIn(), sent('m1'));
+    const after = reducer(s, { type: 'MESSAGE_DELIVERY', id: 'ghost', ok: false });
+    expect(after.chats).toEqual(s.chats);
+  });
+});

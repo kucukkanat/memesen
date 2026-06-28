@@ -2,7 +2,7 @@
 // state. All non-determinism (clock, RNG, network I/O) is resolved by the
 // caller (the useNostr hook) and handed in via the action payload.
 
-import type { Action, AppState, Chat, IncomingPayload, Message, Profile, RelayInfo } from './types';
+import type { Action, AppState, Chat, Delivery, IncomingPayload, Message, Profile, RelayInfo } from './types';
 import { DEFAULT_AVATAR } from './data';
 import { DEFAULT_COLOR, DEFAULT_FONT } from '../ui/fonts';
 import { DEFAULT_RELAYS } from '../nostr/relays';
@@ -126,7 +126,9 @@ const applyMessage = (state: AppState, args: ApplyArgs): AppState => {
   let chat = markSeen(base, id);
   switch (payload.kind) {
     case 'text':
-      chat = append(chat, { kind: 'chat', id, mine, body: payload.body, time, at });
+      // Our own outgoing text starts 'sending' so the UI can show a pending ✓
+      // and flip it to sent/failed once the relay outcome lands (MESSAGE_DELIVERY).
+      chat = append(chat, { kind: 'chat', id, mine, body: payload.body, time, at, ...(inbound ? {} : { delivery: 'sending' as const }) });
       if (!inbound) chat = { ...chat, draft: '' };
       break;
     case 'nudge':
@@ -334,6 +336,17 @@ export const reducer = (state: AppState, action: Action): AppState => {
       return applyMessage(state, { pubkey: action.pubkey, id: action.id, mine: true, at: action.at, time: action.time, payload: action.payload, inbound: false, live: true });
     case 'MESSAGE_RECEIVED':
       return applyMessage(state, { pubkey: action.partner, id: action.id, mine: action.mine, at: action.at, time: action.time, payload: action.payload, inbound: true, live: action.live });
+    case 'MESSAGE_DELIVERY': {
+      const delivery: Delivery = action.ok ? 'sent' : 'failed';
+      return {
+        ...state,
+        chats: state.chats.map((c) =>
+          c.messages.some((m) => m.kind === 'chat' && m.id === action.id)
+            ? { ...c, messages: c.messages.map((m) => (m.kind === 'chat' && m.id === action.id ? { ...m, delivery } : m)) }
+            : c,
+        ),
+      };
+    }
     case 'APPEND_SYSTEM':
       return { ...state, chats: mapChat(state, action.pubkey, (c) => append(c, { kind: 'system', text: action.text, at: Math.floor(state.now / 1000) })) };
 

@@ -49,6 +49,13 @@ type MessageBase = {
   /** Event `created_at` in seconds; the transcript is kept sorted by it. */
   readonly at: number;
 };
+/**
+ * Delivery state of one of *our* outgoing messages, surfaced as a ✓/⚠ marker:
+ * 'sending' until a relay confirms, 'sent' once one accepts it, 'failed' if all
+ * relays rejected it across every retry. Absent on received messages.
+ */
+export type Delivery = 'sending' | 'sent' | 'failed';
+
 export type Message =
   | (MessageBase & { readonly kind: 'system'; readonly text: string })
   | (MessageBase & {
@@ -57,6 +64,7 @@ export type Message =
       readonly mine: boolean;
       readonly body: string;
       readonly time: string; // pre-formatted clock, e.g. "(9:07 PM)"
+      readonly delivery?: Delivery; // set on our own sends; tracks confirmation
     });
 
 /** A DM payload as it crosses the reducer boundary (already decrypted). */
@@ -202,6 +210,8 @@ export type Action =
   // messaging
   | { type: 'MESSAGE_SENT'; pubkey: string; id: string; at: number; time: string; payload: IncomingPayload }
   | { type: 'MESSAGE_RECEIVED'; id: string; partner: string; mine: boolean; at: number; time: string; payload: IncomingPayload; live: boolean }
+  /** Final delivery outcome of one of our sends (`ok` => reached a relay). */
+  | { type: 'MESSAGE_DELIVERY'; id: string; ok: boolean }
   | { type: 'APPEND_SYSTEM'; pubkey: string; text: string }
   // typing indicator (ephemeral; CONTACT_TYPING lights it, CLEAR_TYPING expires it)
   | { type: 'CONTACT_TYPING'; pubkey: string }

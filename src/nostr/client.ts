@@ -11,7 +11,8 @@ import * as nip04 from 'nostr-tools/nip04';
 import { v2 as nip44 } from 'nostr-tools/nip44';
 import { createRumor, createSeal, createWrap, unwrapEvent } from 'nostr-tools/nip59';
 
-import type { Profile, StatusKey } from '../state/types';
+import type { Profile, RelayStatus, StatusKey } from '../state/types';
+import { PRESENCE_TTL_MS } from '../state/data';
 import { parseProfile, serialiseProfile } from './profiles';
 import { sameRelay } from './relays';
 import { decodeWire, encodeWire, type WirePayload } from './wire';
@@ -40,14 +41,61 @@ export interface IncomingMessage {
  */
 export const shouldAnnounce = (message: IncomingMessage): boolean => !message.mine && message.live;
 
+/**
+ * Whether a single relay accepted a publish. `pool.publish` resolves each relay
+ * to its `OK` reason string on success, but *also* resolves (not rejects) with a
+ * `"connection failure: …"` marker when it couldn't even connect; an explicit
+ * reject is an `OK:false`/timeout. So "accepted" = fulfilled with anything that
+ * isn't the connection-failure marker. A send counts as delivered if *any* relay
+ * accepts it.
+ */
+export const isPublishAccepted = (result: PromiseSettledResult<string>): boolean =>
+  result.status === 'fulfilled' && !result.value.startsWith('connection failure');
+
+/**
+ * Whether a contact reads as present *right now*: a non-offline status whose
+ * timestamp hasn't aged past the presence TTL. This is the same decay the buddy
+ * list applies, so a stale stored 'online' (a peer who closed their tab without
+ * broadcasting offline) reads as offline here too. `now` and `at*1000` are ms.
+ */
+export const isPresenceFresh = (status: StatusKey, at: number, now: number): boolean =>
+  status !== 'offline' && now - at * 1000 <= PRESENCE_TTL_MS;
+
+/**
+ * Whether a presence update is a genuine "just came online" worth a toast:
+ * fresh and present, seen *live* (after the relay's stored backlog drained at
+ * EOSE — not replayed history), for a contact we didn't already think was
+ * online, and never ourselves.
+ */
+export const shouldAnnounceOnline = (p: {
+  readonly status: StatusKey;
+  readonly at: number;
+  readonly now: number;
+  readonly live: boolean;
+  readonly wasOnline: boolean;
+  readonly isSelf: boolean;
+}): boolean => p.live && !p.wasOnline && !p.isSelf && isPresenceFresh(p.status, p.at, p.now);
+
 export interface ClientHandlers {
   readonly onProfile: (pubkey: string, profile: Profile) => void;
   readonly onFollows: (entries: ReadonlyArray<{ pubkey: string; petname: string }>) => void;
-  readonly onPresence: (pubkey: string, status: StatusKey, at: number) => void;
+  /**
+   * A contact's presence. `live` is false while the relay replays its stored
+   * presence backlog on (re)connect and true for events seen after EOSE, so a
+   * stale stored status can't masquerade as a fresh sign-in.
+   */
+  readonly onPresence: (pubkey: string, status: StatusKey, at: number, live: boolean) => void;
   readonly onMessage: (message: IncomingMessage) => void;
+  /**
+   * The final outcome of one of our outgoing DMs, after retries: `delivered` is
+   * true once at least one relay accepted the recipient's copy, false if every
+   * relay rejected it across all attempts (we're offline / all relays down). The
+   * UI turns this into a per-message ✓/⚠ marker and a connection warning.
+   */
+  readonly onDelivery: (partner: string, rumorId: string, delivered: boolean) => void;
   /** The other party is typing us a message (ephemeral; auto-expires upstream). */
   readonly onTyping: (pubkey: string) => void;
-  readonly onRelayStatus: (url: string, status: 'connected' | 'error') => void;
+  readonly onRelayStatus: (url: string, status: RelayStatus) => void;
   /** Read markers synced from another device (decrypted NIP-78 app data). */
   readonly onReadMarkers: (markers: Readonly<Record<string, number>>) => void;
   /** Fired once the read-marker backlog has been drained (relay reached EOSE). */
@@ -58,13 +106,34 @@ const PRESENCE_KEYS: ReadonlySet<string> = new Set(['online', 'busy', 'away', 'o
 const nowSec = (): number => Math.floor(Date.now() / 1000);
 const tag = (event: { tags: string[][] }, name: string): string[] | undefined =>
   event.tags.find((t) => t[0] === name);
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Backoff between send attempts. A DM that no relay accepts is retried on this
+// schedule (≈20s total) so a brief socket drop or relay hiccup recovers on its
+// own; only after the last attempt is the message reported as undelivered.
+const SEND_RETRY_DELAYS_MS: readonly number[] = [1000, 2000, 4000, 8000];
+// How often we reconcile the live socket state into per-relay UI status. The
+// pool's connection callbacks only fire on the *first* connect, so without this
+// the dots would never reflect a silent drop-and-reconnect cycle.
+const HEALTH_INTERVAL_MS = 4000;
 
 export class NostrClient {
-  private readonly pool = new SimplePool();
+  // Keepalive + auto-reconnect are the backbone of reliability: ping/pong
+  // detects half-open sockets (laptop sleep, mobile background, flaky NAT) and
+  // reconnect re-establishes dropped connections with backoff, re-running every
+  // open subscription (with `since` advanced past the last event seen) so no
+  // stored message is missed. Without these, a single dropped socket silently
+  // stops delivery until a full reload — the bug this work fixes.
+  private readonly pool = new SimplePool({ enablePing: true, enableReconnect: true });
   private readonly subs: SubCloser[] = [];
   private contactsSub: SubCloser | null = null;
   /** NIP-44 conversation key to ourselves, for encrypting our own app data. */
   private readonly selfKey: Uint8Array;
+  /** Last per-relay status we reported, so the heartbeat only emits on change. */
+  private readonly health = new Map<string, RelayStatus>();
+  private healthTimer: ReturnType<typeof setInterval> | null = null;
+  /** Set on close so an in-flight send retry loop stops touching a dead pool. */
+  private closed = false;
 
   constructor(
     private readonly secret: Uint8Array,
@@ -75,16 +144,18 @@ export class NostrClient {
     this.selfKey = nip44.utils.getConversationKey(secret, pubkey);
     // The pool reports a normalised URL; map it back to the exact URL we were
     // configured with so the UI's per-relay status actually matches.
-    this.pool.onRelayConnectionSuccess = (url) => this.handlers.onRelayStatus(this.configured(url), 'connected');
-    this.pool.onRelayConnectionFailure = (url) => this.handlers.onRelayStatus(this.configured(url), 'error');
+    this.pool.onRelayConnectionSuccess = (url) => this.report(this.configured(url), 'connected');
+    this.pool.onRelayConnectionFailure = (url) => this.report(this.configured(url), 'error');
   }
 
   /** Open every live subscription for the active identity. */
   start(): void {
     // Our own metadata, follow list and presence (and any future edits to them).
+    const own = { live: false };
     this.subs.push(
       this.pool.subscribe(this.relays, { kinds: [KIND_METADATA, KIND_CONTACTS, KIND_STATUS], authors: [this.pubkey] }, {
-        onevent: (e) => this.onOwnEvent(e),
+        onevent: (e) => this.onOwnEvent(e, own.live),
+        oneose: () => { own.live = true; },
       }),
     );
     // Inbound + our own echoed DMs. Gift wraps are backdated up to 2 days, so we
@@ -128,6 +199,7 @@ export class NostrClient {
         oneose: () => this.handlers.onReadSynced(),
       }),
     );
+    this.healthTimer = setInterval(() => this.pollHealth(), HEALTH_INTERVAL_MS);
   }
 
   /** Swap the relay set live (used by the Connection manager). */
@@ -140,12 +212,37 @@ export class NostrClient {
     return this.relays.find((u) => sameRelay(u, reported)) ?? reported;
   }
 
+  /** Emit a per-relay status, deduping so unchanged states don't churn the UI. */
+  private report(url: string, status: RelayStatus): void {
+    if (this.health.get(url) === status) return;
+    this.health.set(url, status);
+    this.handlers.onRelayStatus(url, status);
+  }
+
+  /**
+   * Reconcile each configured relay's live socket state into UI status. A relay
+   * present in the pool and connected is 'connected'; present but down is
+   * 'connecting' (it's mid-reconnect); absent means an initial connect failed
+   * and it was dropped — 'error'. This keeps the dots honest across the silent
+   * drop/reconnect cycles the pool handles internally.
+   */
+  private pollHealth(): void {
+    const live = this.pool.listConnectionStatus();
+    for (const url of this.relays) {
+      let status: RelayStatus = 'error';
+      for (const [reported, connected] of live) {
+        if (sameRelay(reported, url)) { status = connected ? 'connected' : 'connecting'; break; }
+      }
+      this.report(url, status);
+    }
+  }
+
   // --- inbound -------------------------------------------------------------
 
-  private onOwnEvent(event: Event): void {
+  private onOwnEvent(event: Event, live: boolean): void {
     if (event.kind === KIND_METADATA) this.handlers.onProfile(event.pubkey, parseProfile(event.content));
     else if (event.kind === KIND_CONTACTS) this.onContactList(event);
-    else if (event.kind === KIND_STATUS) this.onStatus(event);
+    else if (event.kind === KIND_STATUS) this.onStatus(event, live);
   }
 
   private onContactList(event: Event): void {
@@ -156,11 +253,11 @@ export class NostrClient {
     this.subscribeContacts(entries.map((e) => e.pubkey));
   }
 
-  private onStatus(event: Event): void {
+  private onStatus(event: Event, live: boolean): void {
     if ((tag(event, 'd')?.[1] ?? 'general') !== 'general') return;
     const declared = tag(event, 'status')?.[1];
     const status: StatusKey = declared && PRESENCE_KEYS.has(declared) ? (declared as StatusKey) : 'online';
-    this.handlers.onPresence(event.pubkey, status, event.created_at);
+    this.handlers.onPresence(event.pubkey, status, event.created_at, live);
     if (event.content.trim()) this.handlers.onProfile(event.pubkey, { about: event.content });
   }
 
@@ -206,11 +303,16 @@ export class NostrClient {
   private subscribeContacts(pubkeys: string[]): void {
     this.contactsSub?.close();
     if (pubkeys.length === 0) return;
+    // Presence is replaceable, so the relay replays each contact's last status on
+    // (re)subscribe. Gate on EOSE — exactly like the DM subs — so the stored
+    // backlog is absorbed silently and only post-EOSE changes are "live".
+    const presence = { live: false };
     this.contactsSub = this.pool.subscribe(this.relays, { kinds: [KIND_METADATA, KIND_STATUS], authors: pubkeys }, {
       onevent: (e) => {
         if (e.kind === KIND_METADATA) this.handlers.onProfile(e.pubkey, parseProfile(e.content));
-        else this.onStatus(e);
+        else this.onStatus(e, presence.live);
       },
+      oneose: () => { presence.live = true; },
     });
   }
 
@@ -225,17 +327,43 @@ export class NostrClient {
    * Send a NIP-17 DM. We gift-wrap once for the recipient and once for
    * ourselves (so our sent history survives a reload), and return the rumor id
    * so the caller can optimistically render the message and dedupe its echo.
+   *
+   * Delivery is no longer fire-and-forget: each wrap is published with retry
+   * (see {@link deliver}) and the recipient copy's final outcome is reported via
+   * `onDelivery`, so a message that genuinely couldn't be sent surfaces to the
+   * user instead of vanishing.
    */
   sendDm(toPubkey: string, payload: WirePayload): string {
     const rumor = createRumor(
       { kind: KIND_CHAT, content: encodeWire(payload), tags: [['p', toPubkey]], created_at: nowSec() },
       this.secret,
     );
-    for (const recipient of [toPubkey, this.pubkey]) {
-      const wrap = createWrap(createSeal(rumor, this.secret, recipient), recipient);
-      void Promise.allSettled(this.pool.publish(this.relays, wrap));
-    }
+    // The recipient copy is what "delivered" means; report on it. The self copy
+    // is only our own history backup, so it's best-effort (retried, not reported).
+    const recipientWrap = createWrap(createSeal(rumor, this.secret, toPubkey), toPubkey);
+    const selfWrap = createWrap(createSeal(rumor, this.secret, this.pubkey), this.pubkey);
+    // Suppress the report if we were torn down mid-flight (relay swap / sign-out)
+    // so closing the client can't flash a phantom "not delivered" warning.
+    void this.deliver(recipientWrap).then((ok) => { if (!this.closed) this.handlers.onDelivery(toPubkey, rumor.id, ok); });
+    void this.deliver(selfWrap);
     return rumor.id;
+  }
+
+  /**
+   * Publish one already-signed event, retrying across the whole relay set on the
+   * backoff schedule until at least one relay accepts it. Re-publishing the same
+   * event is idempotent (relays dedupe by id), so retrying after a partial
+   * success is harmless. Resolves true if any attempt landed, false if every
+   * relay rejected it across all attempts.
+   */
+  private async deliver(event: Event): Promise<boolean> {
+    for (let attempt = 0; !this.closed; attempt++) {
+      const results = await Promise.allSettled(this.pool.publish(this.relays, event));
+      if (results.some(isPublishAccepted)) return true;
+      if (attempt >= SEND_RETRY_DELAYS_MS.length) return false;
+      await sleep(SEND_RETRY_DELAYS_MS[attempt] ?? 0);
+    }
+    return false;
   }
 
   /**
@@ -287,13 +415,16 @@ export class NostrClient {
     const sub = this.pool.subscribe(this.relays, filter, {
       onevent: (e) => {
         if (e.kind === KIND_METADATA) this.handlers.onProfile(e.pubkey, parseProfile(e.content));
-        else this.onStatus(e);
+        else this.onStatus(e, false);
       },
       oneose: () => sub.close(),
     });
   }
 
   close(): void {
+    this.closed = true;
+    if (this.healthTimer) clearInterval(this.healthTimer);
+    this.healthTimer = null;
     this.contactsSub?.close();
     for (const sub of this.subs) sub.close();
     this.pool.close(this.relays);

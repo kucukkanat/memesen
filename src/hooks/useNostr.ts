@@ -8,13 +8,15 @@ import type { Dispatch } from 'react';
 import type { Action, AppState, Profile, SelectableStatus } from '../state/types';
 import { formatTime } from '../state/helpers';
 import { secretFromNsec } from '../nostr/keys';
-import { NostrClient, shouldAnnounce, type IncomingMessage } from '../nostr/client';
+import { isPresenceFresh, NostrClient, shouldAnnounce, shouldAnnounceOnline, type IncomingMessage } from '../nostr/client';
 import { loadReadMarkers, saveActive, saveFont, saveIdentities, saveReadMarkers, saveRelays } from '../nostr/identity';
 
 /** UX side effects the App layer owns (sounds, toasts) — fired at the I/O edge. */
 export interface NostrSink {
   readonly onIncoming: (partner: string, message: IncomingMessage) => void;
   readonly onContactOnline: (pubkey: string) => void;
+  /** A message to `partner` couldn't be delivered after retries (warn + offer retry). */
+  readonly onSendFailed: (partner: string) => void;
 }
 
 export interface NostrCommands {
@@ -34,7 +36,6 @@ export interface NostrCommands {
   readonly lookup: (pubkey: string) => void;
 }
 
-const ANNOUNCE_GRACE_MS = 2500; // suppress the initial presence backlog flood
 // Re-send our "typing" ping at most this often; the receiver clears the
 // indicator after the (longer) TTL. TTL > throttle keeps it lit while typing.
 const TYPING_THROTTLE_MS = 3000;
@@ -86,7 +87,8 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
   useEffect(() => {
     if (!state.myPubkey || !activeNsec) return;
     const relays = relayKey ? relayKey.split(',') : [];
-    const startedAt = Date.now();
+    // Contacts we currently consider present, so we can announce only genuine
+    // offline -> online transitions (not every replayed/refreshed status event).
     const online = new Set<string>();
     // A fresh client must re-drain the relay's read markers before publishing.
     setReadSynced(false);
@@ -95,14 +97,14 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
     const client = new NostrClient(secretFromNsec(activeNsec), state.myPubkey, relays, {
       onProfile: (pubkey, profile) => dispatch({ type: 'PROFILE_LOADED', pubkey, profile }),
       onFollows: (entries) => dispatch({ type: 'FOLLOWS_LOADED', entries }),
-      onPresence: (pubkey, status, at) => {
+      onPresence: (pubkey, status, at, live) => {
         dispatch({ type: 'PRESENCE_LOADED', pubkey, status, at });
-        const present = status !== 'offline';
-        if (present && !online.has(pubkey)) {
-          online.add(pubkey);
-          if (Date.now() - startedAt > ANNOUNCE_GRACE_MS) sinkRef.current.onContactOnline(pubkey);
-        } else if (!present) {
-          online.delete(pubkey);
+        const now = Date.now();
+        const wasOnline = online.has(pubkey);
+        if (isPresenceFresh(status, at, now)) online.add(pubkey);
+        else online.delete(pubkey);
+        if (shouldAnnounceOnline({ status, at, now, live, wasOnline, isSelf: pubkey === stateRef.current.myPubkey })) {
+          sinkRef.current.onContactOnline(pubkey);
         }
       },
       onMessage: (message) => {
@@ -119,6 +121,10 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
         // Only toast for genuinely new messages — `live` is false for the
         // stored backlog the relay replays on every (re)connect.
         if (shouldAnnounce(message)) sinkRef.current.onIncoming(message.partner, message);
+      },
+      onDelivery: (partner, id, delivered) => {
+        dispatch({ type: 'MESSAGE_DELIVERY', id, ok: delivered });
+        if (!delivered) sinkRef.current.onSendFailed(partner);
       },
       onTyping: (pubkey) => {
         dispatch({ type: 'CONTACT_TYPING', pubkey });
