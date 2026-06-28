@@ -7,6 +7,7 @@
 import type { CSSProperties } from 'react';
 import type { SwitcherWindow } from '../hooks/useWindowSwitcher';
 import { Butterfly, StatusIcon } from '../assets/icons';
+import { Avatar } from '../assets/avatars';
 import { RichText } from '../assets/emoticons';
 
 export interface SwitcherProps {
@@ -82,7 +83,9 @@ const Card = ({ win, selected }: { win: SwitcherWindow; selected: boolean }) => 
     {/* body: big avatar + preview line */}
     <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'linear-gradient(180deg,#ffffff,#eef2f9)' }}>
       <div style={{ position: 'relative', flexShrink: 0 }}>
-        <img src={win.avatar} alt="" style={{ width: 60, height: 60, borderRadius: 6, objectFit: 'cover', border: '1px solid #9bb0d0', background: '#fff' }} />
+        {/* `avatar` is a bundled key / `memesen:` key / remote URL — let Avatar
+            resolve it (and fall back on a broken remote) like the rest of the app. */}
+        <Avatar pic={win.avatar} size={60} status={win.status} />
         {win.unread && (
           <span style={{ position: 'absolute', top: -5, right: -5, minWidth: 12, height: 12, padding: '0 3px', borderRadius: 7, background: 'linear-gradient(180deg,#ffb347,#f08000)', border: '1px solid #fff', boxShadow: '0 1px 2px rgba(0,0,0,.4)' }} />
         )}
