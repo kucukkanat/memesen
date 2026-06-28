@@ -25,10 +25,10 @@ export const AddContact = (p: AddContactProps) => {
   };
 
   return (
-    <Modal title="Add a Contact" onClose={p.onClose} footer={
+    <Modal title="Add a Contact" testId="add-contact-dialog" onClose={p.onClose} footer={
       <>
-        <button onClick={p.onClose} style={{ ...GREEN_BTN, padding: '5px 16px', background: 'linear-gradient(180deg,#fdfdfd,#dfe6ef)', color: '#33476a', borderColor: '#9bb0d0' }}>Cancel</button>
-        <button onClick={() => void submit()} style={{ ...GREEN_BTN, padding: '5px 20px', opacity: busy ? 0.6 : 1 }}>{busy ? 'Adding…' : 'Add'}</button>
+        <button data-testid="add-contact-cancel-button" onClick={p.onClose} style={{ ...GREEN_BTN, padding: '5px 16px', background: 'linear-gradient(180deg,#fdfdfd,#dfe6ef)', color: '#33476a', borderColor: '#9bb0d0' }}>Cancel</button>
+        <button data-testid="add-contact-submit-button" onClick={() => void submit()} style={{ ...GREEN_BTN, padding: '5px 20px', opacity: busy ? 0.6 : 1 }}>{busy ? 'Adding…' : 'Add'}</button>
       </>
     }>
       <div style={{ padding: '14px 16px' }}>
@@ -38,6 +38,7 @@ export const AddContact = (p: AddContactProps) => {
 
         <div style={{ color: '#333', marginBottom: 3 }}>Contact address:</div>
         <input
+          data-testid="add-contact-address-input"
           value={input}
           autoFocus
           onChange={(e) => setInput(e.target.value)}
@@ -48,6 +49,7 @@ export const AddContact = (p: AddContactProps) => {
 
         <div style={{ color: '#333', marginBottom: 3 }}>Nickname (optional):</div>
         <input
+          data-testid="add-contact-nickname-input"
           value={petname}
           onChange={(e) => setPetname(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}

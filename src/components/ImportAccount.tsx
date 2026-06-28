@@ -39,8 +39,8 @@ export const ImportAccount = (p: ImportAccountProps) => {
   const { videoRef, error: cameraError } = useQrScanner(scanning, onScan);
 
   return (
-    <Modal title="Move or import an account" width={360} onClose={p.onClose} footer={
-      <button onClick={p.onClose} style={{ ...GREEN_BTN, padding: '5px 18px' }}>Cancel</button>
+    <Modal testId="import-account-dialog" title="Move or import an account" width={360} onClose={p.onClose} footer={
+      <button data-testid="import-account-cancel-button" onClick={p.onClose} style={{ ...GREEN_BTN, padding: '5px 18px' }}>Cancel</button>
     }>
       <div style={{ padding: '14px 16px' }}>
         <div style={{ fontSize: 11, color: '#444', lineHeight: 1.5, marginBottom: 12 }}>
@@ -56,11 +56,12 @@ export const ImportAccount = (p: ImportAccountProps) => {
             </div>
             {cameraError && <div style={{ color: '#b04030', fontSize: 11, marginTop: 8, lineHeight: 1.4 }}>{cameraError}</div>}
             <div style={{ textAlign: 'center', marginTop: 8 }}>
-              <span className="msn-link" onClick={() => setScanning(false)} style={{ color: '#2a5db0', fontSize: 11 }}>Stop scanning</span>
+              <span data-testid="import-account-stop-scan-button" className="msn-link" onClick={() => setScanning(false)} style={{ color: '#2a5db0', fontSize: 11 }}>Stop scanning</span>
             </div>
           </div>
         ) : (
           <button
+            data-testid="import-account-scan-qr-button"
             onClick={() => { setError(null); handled.current = ''; setScanning(true); }}
             style={{ ...GREEN_BTN, width: '100%', padding: '9px 0', fontSize: 12, marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}
           >
@@ -73,6 +74,7 @@ export const ImportAccount = (p: ImportAccountProps) => {
         </div>
 
         <textarea
+          data-testid="import-account-secret-input"
           value={text}
           onChange={(e) => { setText(e.target.value); if (error) setError(null); }}
           placeholder="Paste your secret key (nsec…) or 24-word recovery phrase"
@@ -84,6 +86,7 @@ export const ImportAccount = (p: ImportAccountProps) => {
 
         <div style={{ textAlign: 'right', marginTop: 10 }}>
           <button
+            data-testid="import-account-submit-button"
             onClick={() => submit(text)}
             disabled={text.trim().length === 0}
             style={{ ...GREEN_BTN, padding: '6px 18px', opacity: text.trim().length === 0 ? 0.5 : 1, cursor: text.trim().length === 0 ? 'default' : 'pointer' }}

@@ -39,14 +39,14 @@ const InfoIcon = ({ size = 32 }: { size?: number }) => (
 export const ConfirmDialog = (p: ConfirmDialogProps) => {
   const Icon = p.icon === 'info' ? InfoIcon : WarningIcon;
   return (
-    <Modal title={p.title} width={332} onClose={p.onCancel} footer={
+    <Modal testId="confirm-dialog" title={p.title} width={332} onClose={p.onCancel} footer={
       <>
         {p.cancelLabel !== null && (
-          <button onClick={p.onCancel} style={{ ...GREEN_BTN, padding: '5px 18px', background: 'linear-gradient(180deg,#fdfdfd,#dfe6ef)', color: '#33476a', borderColor: '#9bb0d0' }}>
+          <button data-testid="confirm-dialog-cancel-button" onClick={p.onCancel} style={{ ...GREEN_BTN, padding: '5px 18px', background: 'linear-gradient(180deg,#fdfdfd,#dfe6ef)', color: '#33476a', borderColor: '#9bb0d0' }}>
             {p.cancelLabel ?? 'No'}
           </button>
         )}
-        <button onClick={p.onConfirm} style={{ ...GREEN_BTN, padding: '5px 20px' }}>{p.confirmLabel ?? 'Yes'}</button>
+        <button data-testid="confirm-dialog-confirm-button" onClick={p.onConfirm} style={{ ...GREEN_BTN, padding: '5px 20px' }}>{p.confirmLabel ?? 'Yes'}</button>
       </>
     }>
       <div style={{ padding: 16, display: 'flex', alignItems: 'flex-start', gap: 13 }}>

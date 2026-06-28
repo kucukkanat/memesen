@@ -55,6 +55,7 @@ const ContactRow = ({ contact, mobile, unread, onOpen, onRemove, onRename }: { c
   const avatarSize = mobile ? 34 : 24;
   return (
     <div
+      data-testid="buddy-contact-item"
       onClick={onOpen}
       className="msn-row"
       // Unread contacts stay fully lit even when the sender has gone offline, so
@@ -75,6 +76,7 @@ const ContactRow = ({ contact, mobile, unread, onOpen, onRemove, onRename }: { c
         )}
       </span>
       <span
+        data-testid="buddy-contact-rename-button"
         title="Rename contact"
         onClick={(e) => { e.stopPropagation(); onRename(); }}
         className="msn-rowx"
@@ -83,6 +85,7 @@ const ContactRow = ({ contact, mobile, unread, onOpen, onRemove, onRename }: { c
         ✎
       </span>
       <span
+        data-testid="buddy-contact-remove-button"
         title="Remove contact"
         onClick={(e) => { e.stopPropagation(); onRemove(); }}
         className="msn-rowx"
@@ -182,7 +185,7 @@ export const BuddyList = (p: BuddyListProps) => {
       };
 
   return (
-    <div data-win="buddy" style={frame}>
+    <div data-testid="buddy-window" data-win="buddy" style={frame}>
       {/* title bar */}
       <div
         onMouseDown={mobile ? undefined : p.onDrag}
@@ -192,7 +195,7 @@ export const BuddyList = (p: BuddyListProps) => {
         <span style={TITLE_TEXT}>{s.myName || 'Messenger'} - Messenger</span>
         <div style={{ display: 'flex', gap: 2 }}>
           {!mobile && <div style={{ width: 19, height: 17, background: 'linear-gradient(180deg,#5a9bf0,#1a5fc8)', border: '1px solid #fff', borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 8, cursor: 'pointer' }}>▢</div>}
-          <div onClick={p.onSignOut} title="Sign out" style={{ ...CLOSE_BTN, width: mobile ? 26 : 19, height: mobile ? 22 : 17, fontSize: mobile ? 12 : 10 }}>✕</div>
+          <div data-testid="buddy-signout-button" onClick={p.onSignOut} title="Sign out" style={{ ...CLOSE_BTN, width: mobile ? 26 : 19, height: mobile ? 22 : 17, fontSize: mobile ? 12 : 10 }}>✕</div>
         </div>
       </div>
 
@@ -201,7 +204,7 @@ export const BuddyList = (p: BuddyListProps) => {
 
       {/* my profile header */}
       <div style={{ ...SIDE_BORDERS, flexShrink: 0, background: 'linear-gradient(180deg,#1f74da,#0c47a4)', padding: '7px 9px', display: 'flex', alignItems: 'center', gap: 9, position: 'relative' }}>
-        <div onClick={p.onChangePicture} title="Change your display picture" style={{ position: 'relative', cursor: 'pointer' }}>
+        <div data-testid="buddy-change-picture-button" onClick={p.onChangePicture} title="Change your display picture" style={{ position: 'relative', cursor: 'pointer' }}>
           <Avatar pic={s.myAvatar} size={48} status={s.myStatus} />
           <div style={{ position: 'absolute', bottom: -3, right: -3 }}><StatusIcon status={s.myStatus} size={15} /></div>
         </div>
@@ -211,6 +214,7 @@ export const BuddyList = (p: BuddyListProps) => {
                 renamed via the explicit ✎ button, so the two stop fighting and the
                 rename is actually discoverable (the old double-click was invisible). */}
             <span
+              data-testid="buddy-status-picker-trigger"
               onClick={p.onToggleStatusPicker}
               title="Change your status"
               style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, cursor: 'pointer', color: '#fff', fontWeight: 'bold', fontSize: 13, textShadow: '1px 1px 1px rgba(0,0,0,.3)' }}
@@ -222,6 +226,7 @@ export const BuddyList = (p: BuddyListProps) => {
               <span style={{ fontSize: 8 }}>▼</span>
             </span>
             <span
+              data-testid="buddy-edit-name-button"
               onClick={p.onEditName}
               title="Change your display name"
               className="msn-rowx"
@@ -231,6 +236,7 @@ export const BuddyList = (p: BuddyListProps) => {
             </span>
           </div>
           <div
+            data-testid="buddy-edit-psm-button"
             onClick={p.onEditPsm}
             style={{ color: '#aecaf0', fontSize: 10, fontStyle: 'italic', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
           >
@@ -243,7 +249,7 @@ export const BuddyList = (p: BuddyListProps) => {
       {s.statusPickerOpen && (
         <div style={{ position: 'absolute', left: 9, top: 99, width: 158, background: '#fff', border: '1px solid #7a93b8', boxShadow: '2px 3px 9px rgba(0,0,0,.3)', zIndex: 20, padding: '2px 0' }}>
           {PICKER_STATUSES.map((key) => (
-            <div key={key} onClick={() => p.onPickStatus(key)} className="msn-statusopt" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', cursor: 'pointer', color: '#222' }}>
+            <div data-testid="buddy-status-option" key={key} onClick={() => p.onPickStatus(key)} className="msn-statusopt" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', cursor: 'pointer', color: '#222' }}>
               <StatusIcon status={key} size={13} /> {statusOf(key).label}
             </div>
           ))}
@@ -252,25 +258,25 @@ export const BuddyList = (p: BuddyListProps) => {
 
       {/* add-contact / share actions */}
       <div style={{ ...SIDE_BORDERS, flexShrink: 0, background: '#eef3fb', padding: '5px 9px', borderBottom: '1px solid #c0d0e8', display: 'flex', flexWrap: 'wrap', columnGap: 14, rowGap: 4 }}>
-        <span className="msn-link" onClick={p.onAddContact} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span data-testid="buddy-add-contact-button" className="msn-link" onClick={p.onAddContact} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ fontSize: 13 }}>＋</span> Add a Contact
         </span>
-        <span className="msn-link" onClick={p.onShare} title="Copy your contact address or invite link" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span data-testid="buddy-share-contact-button" className="msn-link" onClick={p.onShare} title="Copy your contact address or invite link" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ fontSize: 12 }}>🔗</span> Share my contact
         </span>
-        <span className="msn-link" onClick={p.onExport} title="Move this account to another device, or back it up" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span data-testid="buddy-export-button" className="msn-link" onClick={p.onExport} title="Move this account to another device, or back it up" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ fontSize: 12 }}>📲</span> Move account
         </span>
       </div>
 
       {/* contact list */}
       <div className="msn-scroll" style={{ ...SIDE_BORDERS, background: '#fff', borderBottom: '1px solid #06387c', height: mobile ? 'auto' : 300, flex: mobile ? '1 1 0' : undefined, minHeight: 0, overflowY: 'auto', fontFamily: 'var(--msn-font)' }}>
-        <div onClick={() => p.onToggleGroup('online')} style={{ ...GROUP_HEADER, borderBottom: '1px solid #dce6f3' }}>
+        <div data-testid="buddy-group-online-toggle" onClick={() => p.onToggleGroup('online')} style={{ ...GROUP_HEADER, borderBottom: '1px solid #dce6f3' }}>
           <span style={{ fontSize: 8, width: 8 }}>{s.onlineGroupOpen ? '▼' : '▶'}</span> Online ({online.length})
         </div>
         {s.onlineGroupOpen && online.map((c) => <ContactRow key={c.pubkey} contact={c} mobile={mobile} unread={unreadFor(c.pubkey)} onOpen={() => p.onOpenChat(c.pubkey)} onRemove={() => p.onRemoveContact(c.pubkey)} onRename={() => p.onRenameContact(c.pubkey)} />)}
 
-        <div onClick={() => p.onToggleGroup('offline')} style={{ ...GROUP_HEADER, borderTop: '1px solid #dce6f3', borderBottom: '1px solid #dce6f3' }}>
+        <div data-testid="buddy-group-offline-toggle" onClick={() => p.onToggleGroup('offline')} style={{ ...GROUP_HEADER, borderTop: '1px solid #dce6f3', borderBottom: '1px solid #dce6f3' }}>
           <span style={{ fontSize: 8, width: 8 }}>{s.offlineGroupOpen ? '▼' : '▶'}</span> Offline ({offline.length})
         </div>
         {s.offlineGroupOpen && offline.map((c) => <ContactRow key={c.pubkey} contact={c} mobile={mobile} unread={unreadFor(c.pubkey)} onOpen={() => p.onOpenChat(c.pubkey)} onRemove={() => p.onRemoveContact(c.pubkey)} onRename={() => p.onRenameContact(c.pubkey)} />)}
@@ -296,6 +302,7 @@ export const BuddyList = (p: BuddyListProps) => {
 
       {/* relay status footer — click to manage connections */}
       <div
+        data-testid="buddy-relay-summary"
         onClick={p.onOpenRelays}
         className="msn-link"
         title="Manage your connection"

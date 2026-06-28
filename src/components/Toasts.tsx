@@ -73,6 +73,7 @@ export const ToastStack = ({ toasts, onDismiss }: ToastStackProps) => {
   const mobile = useIsMobile();
   return (
     <div
+      data-testid="toast-stack"
       style={{
         position: 'fixed',
         right: 8,
@@ -88,6 +89,7 @@ export const ToastStack = ({ toasts, onDismiss }: ToastStackProps) => {
       {toasts.map((t) => (
         <div
           key={t.id}
+          data-testid="toast-item"
           onClick={() => onDismiss(t.id)}
           style={{
             width: 218,
@@ -114,7 +116,7 @@ export const ToastStack = ({ toasts, onDismiss }: ToastStackProps) => {
             <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 11, flex: 1, textShadow: '1px 1px 1px rgba(0,0,0,.4)' }}>
               MSN Messenger
             </span>
-            <span style={{ color: '#fff', fontSize: 10, opacity: 0.85 }}>✕</span>
+            <span data-testid="toast-dismiss-button" style={{ color: '#fff', fontSize: 10, opacity: 0.85 }}>✕</span>
           </div>
           {t.kind === 'alert' ? <AlertBody toast={t} /> : <ContactBody toast={t} />}
         </div>

@@ -12,21 +12,22 @@ export interface ShareContactProps {
   readonly onClose: () => void;
 }
 
-const Field = ({ value, onCopy }: { value: string; onCopy: () => void }) => (
+const Field = ({ value, onCopy, inputTestId, buttonTestId }: { value: string; onCopy: () => void; inputTestId: string; buttonTestId: string }) => (
   <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
     <input
+      data-testid={inputTestId}
       readOnly
       value={value}
       onFocus={(e) => e.currentTarget.select()}
       style={{ flex: 1, minWidth: 0, padding: '4px 6px', border: '1px solid #9bb0d0', background: '#f6f9fd', fontFamily: 'Consolas, monospace', fontSize: 11, color: '#222' }}
     />
-    <button onClick={onCopy} style={{ ...GREEN_BTN, padding: '4px 12px', flexShrink: 0 }}>Copy</button>
+    <button data-testid={buttonTestId} onClick={onCopy} style={{ ...GREEN_BTN, padding: '4px 12px', flexShrink: 0 }}>Copy</button>
   </div>
 );
 
 export const ShareContact = (p: ShareContactProps) => (
-  <Modal title="Share my contact" width={380} onClose={p.onClose} footer={
-    <button onClick={p.onClose} style={{ ...GREEN_BTN, padding: '5px 18px' }}>Done</button>
+  <Modal title="Share my contact" testId="share-contact-dialog" width={380} onClose={p.onClose} footer={
+    <button data-testid="share-contact-close-button" onClick={p.onClose} style={{ ...GREEN_BTN, padding: '5px 18px' }}>Done</button>
   }>
     <div style={{ padding: '14px 16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
@@ -38,10 +39,10 @@ export const ShareContact = (p: ShareContactProps) => (
       </div>
 
       <div style={{ color: '#333', marginBottom: 3 }}>Your contact address:</div>
-      <Field value={p.npub} onCopy={p.onCopyNpub} />
+      <Field value={p.npub} onCopy={p.onCopyNpub} inputTestId="share-contact-npub-input" buttonTestId="share-contact-copy-npub-button" />
 
       <div style={{ color: '#333', marginBottom: 3 }}>Invite link (one-click add):</div>
-      <Field value={p.link} onCopy={p.onCopyLink} />
+      <Field value={p.link} onCopy={p.onCopyLink} inputTestId="share-contact-invite-link-input" buttonTestId="share-contact-copy-link-button" />
     </div>
   </Modal>
 );

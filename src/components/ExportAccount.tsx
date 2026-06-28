@@ -81,8 +81,8 @@ export const ExportAccount = (p: ExportAccountProps) => {
   };
 
   return (
-    <Modal title="Move or back up this account" width={380} onClose={p.onClose} footer={
-      <button onClick={p.onClose} style={{ ...GREEN_BTN, padding: '5px 18px' }}>Done</button>
+    <Modal testId="export-account-dialog" title="Move or back up this account" width={380} onClose={p.onClose} footer={
+      <button data-testid="export-account-close-button" onClick={p.onClose} style={{ ...GREEN_BTN, padding: '5px 18px' }}>Done</button>
     }>
       <div style={{ padding: '14px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
@@ -100,7 +100,7 @@ export const ExportAccount = (p: ExportAccountProps) => {
 
         <div style={{ display: 'flex', border: '1px solid #c0d0e8', borderBottom: 'none', borderRadius: '4px 4px 0 0', overflow: 'hidden' }}>
           {TABS.map((t) => (
-            <div key={t.id} onClick={() => setTab(t.id)} style={tabStyle(tab === t.id)}>{t.label}</div>
+            <div key={t.id} data-testid="export-account-tab" onClick={() => setTab(t.id)} style={tabStyle(tab === t.id)}>{t.label}</div>
           ))}
         </div>
 
@@ -110,7 +110,7 @@ export const ExportAccount = (p: ExportAccountProps) => {
               <div style={{ fontSize: 11, color: '#555', marginBottom: 12, lineHeight: 1.5 }}>
                 Your secret is hidden. Make sure no one is watching your screen, then reveal it.
               </div>
-              <button onClick={() => setRevealed(true)} style={{ ...GREEN_BTN, padding: '7px 20px' }}>🔓 Show secret</button>
+              <button data-testid="export-account-reveal-button" onClick={() => setRevealed(true)} style={{ ...GREEN_BTN, padding: '7px 20px' }}>🔓 Show secret</button>
             </div>
           ) : tab === 'phone' ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
@@ -125,6 +125,7 @@ export const ExportAccount = (p: ExportAccountProps) => {
             <div>
               <div style={{ fontSize: 11, color: '#333', marginBottom: 4 }}>Your secret key:</div>
               <textarea
+                data-testid="export-account-nsec-field"
                 readOnly
                 value={p.nsec}
                 onFocus={(e) => e.currentTarget.select()}
@@ -132,22 +133,22 @@ export const ExportAccount = (p: ExportAccountProps) => {
                 style={{ width: '100%', resize: 'none', padding: '5px 6px', border: '1px solid #9bb0d0', background: '#f6f9fd', fontFamily: 'Consolas, monospace', fontSize: 11, color: '#222', wordBreak: 'break-all' }}
               />
               <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                <button onClick={() => p.onCopy(p.nsec, 'secret key')} style={{ ...GREEN_BTN, padding: '5px 14px' }}>Copy key</button>
-                <button onClick={saveToFile} style={{ ...GREEN_BTN, padding: '5px 14px' }}>Save as file…</button>
+                <button data-testid="export-account-copy-nsec-button" onClick={() => p.onCopy(p.nsec, 'secret key')} style={{ ...GREEN_BTN, padding: '5px 14px' }}>Copy key</button>
+                <button data-testid="export-account-save-file-button" onClick={saveToFile} style={{ ...GREEN_BTN, padding: '5px 14px' }}>Save as file…</button>
               </div>
             </div>
           ) : (
             <div>
               <div style={{ fontSize: 11, color: '#333', marginBottom: 8 }}>Write these 24 words down in order and keep them somewhere safe:</div>
               <Numbered words={words} />
-              <button onClick={() => p.onCopy(phrase, 'recovery phrase')} style={{ ...GREEN_BTN, padding: '5px 14px', marginTop: 10 }}>Copy words</button>
+              <button data-testid="export-account-copy-phrase-button" onClick={() => p.onCopy(phrase, 'recovery phrase')} style={{ ...GREEN_BTN, padding: '5px 14px', marginTop: 10 }}>Copy words</button>
             </div>
           )}
         </div>
 
         {revealed && (
           <div style={{ textAlign: 'right', marginTop: 8 }}>
-            <span className="msn-link" onClick={() => setRevealed(false)} style={{ color: '#2a5db0', fontSize: 10.5 }}>Hide secret</span>
+            <span data-testid="export-account-hide-toggle" className="msn-link" onClick={() => setRevealed(false)} style={{ color: '#2a5db0', fontSize: 10.5 }}>Hide secret</span>
           </div>
         )}
       </div>

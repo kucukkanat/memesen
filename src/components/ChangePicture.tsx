@@ -29,10 +29,11 @@ export const ChangePicture = (p: ChangePictureProps) => {
   const isSelected = (key: string): boolean => selected === `memesen:${key}` || selected === key;
 
   return (
-    <Modal title="Display Picture" width={384} onClose={p.onClose} footer={
+    <Modal testId="change-picture-dialog" title="Display Picture" width={384} onClose={p.onClose} footer={
       <>
-        <button onClick={p.onClose} style={{ ...GREEN_BTN, padding: '5px 16px', background: 'linear-gradient(180deg,#fdfdfd,#dfe6ef)', color: '#33476a', borderColor: '#9bb0d0' }}>Cancel</button>
+        <button data-testid="change-picture-cancel-button" onClick={p.onClose} style={{ ...GREEN_BTN, padding: '5px 16px', background: 'linear-gradient(180deg,#fdfdfd,#dfe6ef)', color: '#33476a', borderColor: '#9bb0d0' }}>Cancel</button>
         <button
+          data-testid="change-picture-ok-button"
           onClick={() => selected.trim() && p.onChoose(selected.trim())}
           style={{ ...GREEN_BTN, padding: '5px 22px', opacity: selected.trim() ? 1 : 0.6 }}
         >
@@ -53,6 +54,7 @@ export const ChangePicture = (p: ChangePictureProps) => {
               {AVATAR_KEYS.map((key) => (
                 <div
                   key={key}
+                  data-testid="change-picture-avatar-item"
                   onClick={() => pickBundled(key)}
                   className="msn-toolbtn"
                   title={key}
@@ -74,6 +76,7 @@ export const ChangePicture = (p: ChangePictureProps) => {
         <div style={{ marginTop: 14, borderTop: '1px solid #e3e9f2', paddingTop: 12 }}>
           <div style={{ color: '#333', marginBottom: 4 }}>…or use a picture from the web:</div>
           <input
+            data-testid="change-picture-url-input"
             value={url}
             onChange={(e) => changeUrl(e.target.value)}
             placeholder="https://example.com/me.jpg"

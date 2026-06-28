@@ -43,6 +43,8 @@ export interface ModalProps {
   readonly width?: number;
   /** Dismiss by clicking the dimmed backdrop (default false — XP dialogs are modal). */
   readonly dismissOnBackdrop?: boolean;
+  /** Test id applied to the modal card for targeting in tests. */
+  readonly testId?: string;
 }
 
 /**
@@ -96,11 +98,11 @@ export const Modal = (p: ModalProps) => {
         if (p.dismissOnBackdrop && e.target === e.currentTarget) p.onClose();
       }}
     >
-      <div style={card}>
+      <div style={card} data-testid={p.testId}>
         <div style={{ ...TITLE_BAR, flexShrink: 0 }}>
           <span style={{ marginRight: 5, display: 'flex' }}><Butterfly size={15} /></span>
           <span style={TITLE_TEXT}>{p.title}</span>
-          <div onClick={p.onClose} style={{ ...CLOSE_BTN, width: mobile ? 26 : 19, height: mobile ? 22 : 17, fontSize: mobile ? 12 : 10 }}>✕</div>
+          <div data-testid="modal-close-button" onClick={p.onClose} style={{ ...CLOSE_BTN, width: mobile ? 26 : 19, height: mobile ? 22 : 17, fontSize: mobile ? 12 : 10 }}>✕</div>
         </div>
 
         <div style={body}>{p.children}</div>

@@ -13,18 +13,18 @@ export interface InviteDialogProps {
 }
 
 export const InviteDialog = (p: InviteDialogProps) => (
-  <Modal title="Contact invitation" width={332} onClose={p.onCancel} footer={
+  <Modal title="Contact invitation" testId="invite-dialog" width={332} onClose={p.onCancel} footer={
     p.alreadyAdded ? (
-      <button onClick={p.onCancel} style={{ ...GREEN_BTN, padding: '5px 20px' }}>OK</button>
+      <button data-testid="invite-cancel-button" onClick={p.onCancel} style={{ ...GREEN_BTN, padding: '5px 20px' }}>OK</button>
     ) : (
       <>
-        <button onClick={p.onCancel} style={{ ...GREEN_BTN, padding: '5px 16px', background: 'linear-gradient(180deg,#fdfdfd,#dfe6ef)', color: '#33476a', borderColor: '#9bb0d0' }}>Not now</button>
-        <button onClick={p.onAdd} style={{ ...GREEN_BTN, padding: '5px 22px' }}>Add</button>
+        <button data-testid="invite-cancel-button" onClick={p.onCancel} style={{ ...GREEN_BTN, padding: '5px 16px', background: 'linear-gradient(180deg,#fdfdfd,#dfe6ef)', color: '#33476a', borderColor: '#9bb0d0' }}>Not now</button>
+        <button data-testid="invite-add-button" onClick={p.onAdd} style={{ ...GREEN_BTN, padding: '5px 22px' }}>Add</button>
       </>
     )
   }>
     <div style={{ padding: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+      <div data-testid="invite-contact-preview" style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
         <div style={{ position: 'relative', flexShrink: 0 }}>
           <Avatar pic={p.contact.avatar} size={44} status={p.contact.status} />
           <span style={{ position: 'absolute', bottom: -3, right: -3 }}><StatusIcon status={p.contact.status} size={13} /></span>

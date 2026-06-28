@@ -53,6 +53,7 @@ export const Taskbar = (props: TaskbarProps) => {
  */
 const MobileNav = ({ muted, onToggleMute, windows, onFocusWindow, activeId }: TaskbarProps) => (
   <div
+    data-testid="taskbar-nav"
     style={{
       position: 'fixed',
       bottom: 0,
@@ -67,13 +68,14 @@ const MobileNav = ({ muted, onToggleMute, windows, onFocusWindow, activeId }: Ta
       boxShadow: '0 -1px 6px rgba(0,0,0,.35)',
     }}
   >
-    <div className="msn-scroll" style={{ display: 'flex', alignItems: 'stretch', gap: 6, padding: '5px 6px', flex: 1, overflowX: 'auto' }}>
+    <div data-testid="taskbar-window-list" className="msn-scroll" style={{ display: 'flex', alignItems: 'stretch', gap: 6, padding: '5px 6px', flex: 1, overflowX: 'auto' }}>
       {windows.map((w) => {
         const active = w.id === activeId;
         const home = w.id === BUDDY_ID;
         return (
           <div
             key={w.id}
+            data-testid="taskbar-window-item"
             className="msn-taskbtn"
             onClick={() => onFocusWindow(w.id)}
             style={{
@@ -109,6 +111,7 @@ const MobileNav = ({ muted, onToggleMute, windows, onFocusWindow, activeId }: Ta
     </div>
 
     <div
+      data-testid="taskbar-mute-toggle"
       className="msn-link"
       title={muted ? 'Sounds off — tap to unmute' : 'Sounds on — tap to mute'}
       onClick={onToggleMute}
@@ -121,6 +124,7 @@ const MobileNav = ({ muted, onToggleMute, windows, onFocusWindow, activeId }: Ta
 
 const DesktopTaskbar = ({ now, muted, onToggleMute, windows, onFocusWindow }: TaskbarProps) => (
   <div
+    data-testid="taskbar"
     style={{
       position: 'fixed',
       bottom: 0,
@@ -135,6 +139,7 @@ const DesktopTaskbar = ({ now, muted, onToggleMute, windows, onFocusWindow }: Ta
     }}
   >
     <div
+      data-testid="taskbar-start-button"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -155,10 +160,11 @@ const DesktopTaskbar = ({ now, muted, onToggleMute, windows, onFocusWindow }: Ta
     </div>
 
     {/* open-window buttons */}
-    <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0 8px', flex: 1, overflow: 'hidden' }}>
+    <div data-testid="taskbar-window-list" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0 8px', flex: 1, overflow: 'hidden' }}>
       {windows.map((w) => (
         <div
           key={w.id}
+          data-testid="taskbar-window-item"
           className="msn-taskbtn"
           onClick={() => onFocusWindow(w.id)}
           style={{
@@ -178,6 +184,7 @@ const DesktopTaskbar = ({ now, muted, onToggleMute, windows, onFocusWindow }: Ta
 
     {/* system tray */}
     <div
+      data-testid="taskbar-tray"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -189,6 +196,7 @@ const DesktopTaskbar = ({ now, muted, onToggleMute, windows, onFocusWindow }: Ta
       }}
     >
       <span
+        data-testid="taskbar-mute-toggle"
         className="msn-link"
         title={muted ? 'Sounds off — click to unmute' : 'Sounds on — click to mute'}
         onClick={onToggleMute}
@@ -197,7 +205,7 @@ const DesktopTaskbar = ({ now, muted, onToggleMute, windows, onFocusWindow }: Ta
         {muted ? '🔇' : '🔊'}
       </span>
       <Butterfly size={15} />
-      <span style={{ color: '#fff', textShadow: '1px 1px 1px rgba(0,0,0,.35)' }}>{formatClock(now)}</span>
+      <span data-testid="taskbar-clock" style={{ color: '#fff', textShadow: '1px 1px 1px rgba(0,0,0,.35)' }}>{formatClock(now)}</span>
     </div>
   </div>
 );

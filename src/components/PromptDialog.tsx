@@ -29,15 +29,16 @@ export const PromptDialog = (p: PromptDialogProps) => {
   };
 
   return (
-    <Modal title={p.title} width={332} onClose={p.onCancel} footer={
+    <Modal testId="prompt-dialog" title={p.title} width={332} onClose={p.onCancel} footer={
       <>
-        <button onClick={p.onCancel} style={{ ...GREEN_BTN, padding: '5px 16px', background: 'linear-gradient(180deg,#fdfdfd,#dfe6ef)', color: '#33476a', borderColor: '#9bb0d0' }}>Cancel</button>
-        <button onClick={submit} style={{ ...GREEN_BTN, padding: '5px 20px', opacity: valid ? 1 : 0.6 }}>{p.confirmLabel ?? 'OK'}</button>
+        <button data-testid="prompt-dialog-cancel-button" onClick={p.onCancel} style={{ ...GREEN_BTN, padding: '5px 16px', background: 'linear-gradient(180deg,#fdfdfd,#dfe6ef)', color: '#33476a', borderColor: '#9bb0d0' }}>Cancel</button>
+        <button data-testid="prompt-dialog-confirm-button" onClick={submit} style={{ ...GREEN_BTN, padding: '5px 20px', opacity: valid ? 1 : 0.6 }}>{p.confirmLabel ?? 'OK'}</button>
       </>
     }>
       <div style={{ padding: '14px 16px' }}>
         <div style={{ color: '#333', fontSize: 11, marginBottom: 6, lineHeight: 1.5 }}>{p.label}</div>
         <input
+          data-testid="prompt-dialog-input"
           value={value}
           autoFocus
           onChange={(e) => setValue(e.target.value)}

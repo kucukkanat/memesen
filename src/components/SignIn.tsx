@@ -53,6 +53,7 @@ export const SignIn = (p: SignInProps) => {
   return (
     <div
       data-win="signin"
+      data-testid="signin-window"
       style={{
         position: mobile ? 'fixed' : 'absolute',
         ...placement,
@@ -88,6 +89,7 @@ export const SignIn = (p: SignInProps) => {
                 {p.identities.map((i) => (
                   <div
                     key={i.pubkey}
+                    data-testid="signin-identity-item"
                     onClick={() => setSelected(i.pubkey)}
                     onDoubleClick={() => p.onSignIn(i.pubkey)}
                     className="msn-statusopt"
@@ -107,6 +109,7 @@ export const SignIn = (p: SignInProps) => {
                       <div style={{ color: '#8a93a0', fontSize: 9 }}>{shortNpub(i.pubkey)}</div>
                     </div>
                     <span
+                      data-testid="signin-remove-identity-button"
                       title="Remove this account"
                       onClick={(e) => { e.stopPropagation(); p.onRemove(i.pubkey); }}
                       style={{ color: '#b04030', fontSize: 11, padding: '0 3px', cursor: 'pointer' }}
@@ -119,17 +122,19 @@ export const SignIn = (p: SignInProps) => {
 
               <div style={LABEL}>Status:</div>
               <select
+                data-testid="signin-status-picker"
                 value={p.status}
                 onChange={(e) => p.onStatus(e.target.value as SelectableStatus)}
                 style={{ ...FIELD, padding: '3px 4px', marginBottom: 14 }}
               >
-                <option value="online">Online</option>
-                <option value="busy">Busy</option>
-                <option value="away">Away</option>
-                <option value="invisible">Appear Offline</option>
+                <option data-testid="signin-status-option" value="online">Online</option>
+                <option data-testid="signin-status-option" value="busy">Busy</option>
+                <option data-testid="signin-status-option" value="away">Away</option>
+                <option data-testid="signin-status-option" value="invisible">Appear Offline</option>
               </select>
 
               <button
+                data-testid="signin-sign-in-button"
                 onClick={() => active && p.onSignIn(active)}
                 style={{ ...GREEN_BTN, display: 'flex', alignItems: 'center', gap: 6, margin: '0 auto', padding: '6px 26px' }}
               >
@@ -143,8 +148,8 @@ export const SignIn = (p: SignInProps) => {
           )}
 
           <div style={{ marginTop: 16, color: '#2a5db0', display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'center' }}>
-            <span className="msn-link" onClick={p.onCreate}>Create a new account</span>
-            <span className="msn-link" onClick={p.onImport}>Move or import an account</span>
+            <span data-testid="signin-create-account-button" className="msn-link" onClick={p.onCreate}>Create a new account</span>
+            <span data-testid="signin-import-account-button" className="msn-link" onClick={p.onImport}>Move or import an account</span>
           </div>
         </div>
       </div>

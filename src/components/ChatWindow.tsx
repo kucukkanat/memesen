@@ -224,6 +224,7 @@ export const ChatWindow = (p: ChatWindowProps) => {
   return (
     <div
       data-win="chat"
+      data-testid="chat-window"
       onMouseDown={p.onFocus}
       style={{
         // On phones the conversation is a full-screen view above the bottom nav
@@ -245,15 +246,16 @@ export const ChatWindow = (p: ChatWindowProps) => {
     >
       {/* title bar */}
       <div
+        data-testid="chat-titlebar"
         onMouseDown={mobile ? undefined : p.onTitleDrag}
         style={{ ...TITLE_BAR, flexShrink: 0, cursor: mobile ? 'default' : 'move', height: mobile ? 'auto' : 24, paddingTop: mobile ? 'calc(4px + var(--safe-top))' : undefined, paddingBottom: mobile ? 4 : undefined }}
       >
         {mobile && p.onBack && (
-          <div onClick={p.onBack} title="Back to contacts" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 22, marginRight: 2, color: '#fff', fontSize: 18, cursor: 'pointer' }}>‹</div>
+          <div data-testid="chat-back-button" onClick={p.onBack} title="Back to contacts" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 22, marginRight: 2, color: '#fff', fontSize: 18, cursor: 'pointer' }}>‹</div>
         )}
         <span style={{ marginRight: 5, display: 'flex' }}><Butterfly size={15} /></span>
         <span style={TITLE_TEXT}><RichText text={contact.name} size={15} /> - Conversation</span>
-        <div onClick={p.onClose} style={{ ...CLOSE_BTN, width: mobile ? 26 : 19, height: mobile ? 22 : 17, fontSize: mobile ? 12 : 10 }}>✕</div>
+        <div data-testid="chat-close-button" onClick={p.onClose} style={{ ...CLOSE_BTN, width: mobile ? 26 : 19, height: mobile ? 22 : 17, fontSize: mobile ? 12 : 10 }}>✕</div>
       </div>
 
       {/* menu — with the msn wordmark parked at the far right, as in the original */}
@@ -277,16 +279,17 @@ export const ChatWindow = (p: ChatWindowProps) => {
           overflowX: 'auto',
         }}
       >
-        <div className="msn-toolbtn" onClick={p.onAddContact} title="Invite someone" style={BIG_BTN}>
+        <div data-testid="chat-invite-button" className="msn-toolbtn" onClick={p.onAddContact} title="Invite someone" style={BIG_BTN}>
           <img src={inviteIcon} style={BIG_ICON} alt="" /> Invite
         </div>
-        <div className="msn-toolbtn" onClick={pickImages} title="Send a picture" style={BIG_BTN}>
+        <div data-testid="chat-send-image-button" className="msn-toolbtn" onClick={pickImages} title="Send a picture" style={BIG_BTN}>
           <img src={sendFilesIcon} style={BIG_ICON} alt="" /> Send Images
         </div>
         {/* image-only picker, shared by the toolbar button and the Actions menu;
             on mobile this surfaces the camera and photo library */}
         <input
           ref={fileRef}
+          data-testid="chat-image-input"
           type="file"
           accept="image/*"
           multiple
@@ -294,17 +297,17 @@ export const ChatWindow = (p: ChatWindowProps) => {
           style={{ display: 'none' }}
         />
         <div style={SEP} />
-        <div className="msn-toolbtn" title="Start a video call" style={BIG_BTN}>
+        <div data-testid="chat-video-button" className="msn-toolbtn" title="Start a video call" style={BIG_BTN}>
           <img src={videoIcon} style={BIG_ICON} alt="" /> Video
         </div>
-        <div className="msn-toolbtn" title="Start a voice call" style={BIG_BTN}>
+        <div data-testid="chat-voice-button" className="msn-toolbtn" title="Start a voice call" style={BIG_BTN}>
           <img src={voiceIcon} style={BIG_ICON} alt="" /> Voice
         </div>
         <div style={SEP} />
-        <div className="msn-toolbtn" title="Activities" style={BIG_BTN}>
+        <div data-testid="chat-activities-button" className="msn-toolbtn" title="Activities" style={BIG_BTN}>
           <img src={activitiesIcon} style={BIG_ICON} alt="" /> Activities
         </div>
-        <div className="msn-toolbtn" title="Games" style={BIG_BTN}>
+        <div data-testid="chat-games-button" className="msn-toolbtn" title="Games" style={BIG_BTN}>
           <img src={gamesIcon} style={BIG_ICON} alt="" /> Games
         </div>
       </div>
@@ -330,6 +333,7 @@ export const ChatWindow = (p: ChatWindowProps) => {
             <RichText text={contact.name} size={13} /> is not in your contact list yet.
           </span>
           <button
+            data-testid="chat-add-contact-button"
             onClick={p.onAddContact}
             style={{ ...GREEN_BTN, flexShrink: 0, padding: '3px 12px', fontSize: 11 }}
           >
@@ -356,14 +360,14 @@ export const ChatWindow = (p: ChatWindowProps) => {
           </div>
 
           {/* transcript */}
-          <div ref={logRef} className="msn-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 10px', fontFamily: 'var(--msn-font)' }}>
+          <div ref={logRef} data-testid="chat-message-list" className="msn-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 10px', fontFamily: 'var(--msn-font)' }}>
             {chat.messages.map((m, i) =>
               m.kind === 'system' ? (
-                <div key={i} style={{ textAlign: 'center', color: '#9a6a1a', fontSize: 10, margin: '6px 0', fontStyle: 'italic' }}>
+                <div key={i} data-testid="chat-message-item" style={{ textAlign: 'center', color: '#9a6a1a', fontSize: 10, margin: '6px 0', fontStyle: 'italic' }}>
                   {m.text}
                 </div>
               ) : (
-                <div key={i} style={{ marginBottom: 7 }}>
+                <div key={i} data-testid="chat-message-item" style={{ marginBottom: 7 }}>
                   <div style={{ color: m.mine ? '#1a5fc8' : '#c8401a', fontWeight: 'bold', fontSize: 10 }}>
                     <RichText text={m.mine ? p.myName : contact.name} size={13} /> <span style={{ color: '#aaa', fontWeight: 'normal' }}>{m.time}</span>
                     {m.mine && m.delivery === 'sending' && <span style={{ color: '#aaa', fontWeight: 'normal' }}> · Sending…</span>}
@@ -380,6 +384,7 @@ export const ChatWindow = (p: ChatWindowProps) => {
                   <div style={{ color: 'var(--msn-color)', paddingLeft: 8, wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>
                     {m.image ? (
                       <img
+                        data-testid="chat-message-image"
                         src={m.body}
                         alt="Shared picture"
                         onClick={() => setZoom(m.body)}
@@ -401,10 +406,11 @@ export const ChatWindow = (p: ChatWindowProps) => {
 
           {/* emoticon palette */}
           {chat.emojiOpen && (
-            <div style={{ flexShrink: 0, background: '#fff', borderTop: '1px solid #c8d4e6', padding: '6px 8px', display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+            <div data-testid="chat-emoji-picker" style={{ flexShrink: 0, background: '#fff', borderTop: '1px solid #c8d4e6', padding: '6px 8px', display: 'flex', flexWrap: 'wrap', gap: 3 }}>
               {EMOTICON_LIST.map((e) => (
                 <div
                   key={e.code}
+                  data-testid="chat-emoji-item"
                   className="msn-toolbtn"
                   onClick={() => pickEmoji(e.code)}
                   title={`${e.name}  ${e.code}`}
@@ -428,19 +434,19 @@ export const ChatWindow = (p: ChatWindowProps) => {
               padding: '3px 6px',
             }}
           >
-            <div className="msn-toolbtn" onClick={p.onOpenFont} title="Change my message font" style={{ ...FMT_BTN, fontFamily: 'Georgia, serif', fontWeight: 'bold', fontSize: 13, color: '#1a4a9c', padding: '0 6px' }}>A</div>
-            <div className="msn-toolbtn" onClick={p.onToggleEmoji} title="Emoticons" style={FMT_BTN}>
+            <div data-testid="chat-font-button" className="msn-toolbtn" onClick={p.onOpenFont} title="Change my message font" style={{ ...FMT_BTN, fontFamily: 'Georgia, serif', fontWeight: 'bold', fontSize: 13, color: '#1a4a9c', padding: '0 6px' }}>A</div>
+            <div data-testid="chat-emoji-toggle" className="msn-toolbtn" onClick={p.onToggleEmoji} title="Emoticons" style={FMT_BTN}>
               <Emoticon code=":)" size={15} />
             </div>
             <div style={SEP} />
-            <div className="msn-toolbtn" title="Record a voice clip" style={FMT_BTN}>
+            <div data-testid="chat-voice-clip-button" className="msn-toolbtn" title="Record a voice clip" style={FMT_BTN}>
               <img src={voiceClipIcon} style={FMT_ICON} alt="" /> Voice Clip
             </div>
             <div style={SEP} />
-            <div className="msn-toolbtn" onClick={p.onNudge} title="Send a Nudge" style={FMT_BTN}>
+            <div data-testid="chat-nudge-button" className="msn-toolbtn" onClick={p.onNudge} title="Send a Nudge" style={FMT_BTN}>
               <img src={nudgeIcon} style={FMT_ICON} alt="" /> Nudge
             </div>
-            <div className="msn-toolbtn" onClick={p.onWink} title="Send a Wink" style={FMT_BTN}>
+            <div data-testid="chat-wink-button" className="msn-toolbtn" onClick={p.onWink} title="Send a Wink" style={FMT_BTN}>
               <img src={winkIcon} style={FMT_ICON} alt="" /> Winks
             </div>
           </div>
@@ -449,6 +455,7 @@ export const ChatWindow = (p: ChatWindowProps) => {
           <div style={{ flexShrink: 0, background: '#fff', padding: '7px 8px 8px', display: 'flex', gap: 7, alignItems: 'stretch' }}>
             <textarea
               ref={inputRef}
+              data-testid="chat-message-input"
               value={chat.draft}
               onChange={(e) => p.onDraft(e.target.value)}
               onKeyDown={p.onKeyDown}
@@ -466,8 +473,8 @@ export const ChatWindow = (p: ChatWindowProps) => {
               }}
             />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 66, flexShrink: 0 }}>
-              <button onClick={p.onSend} style={{ ...GREEN_BTN, flex: 1 }}>Send</button>
-              <button title="Find a message" style={{ ...GREEN_BTN, flex: 1, color: '#33476a', background: 'linear-gradient(180deg,#fdfefe,#dfe8f4)', border: '1px solid #9bb0d0' }}>Search</button>
+              <button data-testid="chat-send-button" onClick={p.onSend} style={{ ...GREEN_BTN, flex: 1 }}>Send</button>
+              <button data-testid="chat-search-button" title="Find a message" style={{ ...GREEN_BTN, flex: 1, color: '#33476a', background: 'linear-gradient(180deg,#fdfefe,#dfe8f4)', border: '1px solid #9bb0d0' }}>Search</button>
             </div>
           </div>
         </div>
@@ -497,6 +504,7 @@ export const ChatWindow = (p: ChatWindowProps) => {
         {/* resize grip — desktop only; the mobile view is full-screen */}
         {!mobile && (
           <div
+            data-testid="chat-resize-handle"
             onMouseDown={p.onResize}
             title="Drag to resize"
             style={{

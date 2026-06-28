@@ -82,9 +82,9 @@ const Dropdown = ({ items, onClose }: { items: readonly MenuNode[]; onClose: () 
   // Which submenu (by index) is currently flown out.
   const [openSub, setOpenSub] = useState<number | null>(null);
   return (
-    <div style={DROPDOWN} onMouseDown={(e) => e.stopPropagation()}>
+    <div data-testid="menubar-menu" style={DROPDOWN} onMouseDown={(e) => e.stopPropagation()}>
       {items.map((node, i) => {
-        if (node.kind === 'separator') return <div key={i} style={SEPARATOR} />;
+        if (node.kind === 'separator') return <div key={i} data-testid="menubar-menu-separator" style={SEPARATOR} />;
         if (node.kind === 'submenu') {
           return (
             <div
@@ -93,7 +93,7 @@ const Dropdown = ({ items, onClose }: { items: readonly MenuNode[]; onClose: () 
               onMouseEnter={() => setOpenSub(i)}
               onMouseLeave={() => setOpenSub((cur) => (cur === i ? null : cur))}
             >
-              <div className="msn-menuitem" style={{ ...ROW, justifyContent: 'space-between' }}>
+              <div data-testid="menubar-menu-item" className="msn-menuitem" style={{ ...ROW, justifyContent: 'space-between' }}>
                 <span>{node.label}</span>
                 <span style={{ fontSize: 9 }}>▶</span>
               </div>
@@ -109,6 +109,7 @@ const Dropdown = ({ items, onClose }: { items: readonly MenuNode[]; onClose: () 
         return (
           <div
             key={i}
+            data-testid="menubar-menu-item"
             className={disabled ? undefined : 'msn-menuitem'}
             style={{ ...ROW, justifyContent: 'space-between', color: disabled ? '#9aa0ab' : '#000', cursor: disabled ? 'default' : 'pointer' }}
             onClick={
@@ -151,10 +152,11 @@ export const MenuBar = ({ menus, style, trailing }: MenuBarProps) => {
   }, [open]);
 
   return (
-    <div ref={barRef} style={{ ...MENU_BAR, position: 'relative', ...style }}>
+    <div ref={barRef} data-testid="menubar-root" style={{ ...MENU_BAR, position: 'relative', ...style }}>
       {menus.map((menu, i) => (
         <div key={menu.label} style={{ position: 'relative' }}>
           <span
+            data-testid="menubar-menu-trigger"
             className="msn-link"
             // Once a menu is open, sliding across the bar switches menus — the
             // hallmark of a real Win32 menu bar.

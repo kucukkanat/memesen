@@ -549,6 +549,7 @@ export const App = () => {
 
   return (
     <div
+      data-testid="app-root"
       // The chosen message font/colour ride down as CSS custom properties so the
       // contact list, chat history and message input can opt in with var(--msn-*).
       style={{

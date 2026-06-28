@@ -20,20 +20,21 @@ export const FontPicker = (p: FontPickerProps) => {
   const [color, setColor] = useState(p.fontColor);
 
   return (
-    <Modal title="Change My Message Font" width={360} onClose={p.onClose} footer={
+    <Modal title="Change My Message Font" width={360} onClose={p.onClose} testId="font-picker-dialog" footer={
       <>
-        <button onClick={p.onClose} style={{ ...GREEN_BTN, padding: '5px 16px', background: 'linear-gradient(180deg,#fdfdfd,#dfe6ef)', color: '#33476a', borderColor: '#9bb0d0' }}>Cancel</button>
-        <button onClick={() => p.onChoose(stack, color)} style={{ ...GREEN_BTN, padding: '5px 22px' }}>OK</button>
+        <button data-testid="font-picker-cancel-button" onClick={p.onClose} style={{ ...GREEN_BTN, padding: '5px 16px', background: 'linear-gradient(180deg,#fdfdfd,#dfe6ef)', color: '#33476a', borderColor: '#9bb0d0' }}>Cancel</button>
+        <button data-testid="font-picker-ok-button" onClick={() => p.onChoose(stack, color)} style={{ ...GREEN_BTN, padding: '5px 22px' }}>OK</button>
       </>
     }>
       <div style={{ padding: '14px 16px' }}>
         <div style={{ color: '#333', marginBottom: 5 }}>Font:</div>
-        <div style={{ border: '1px solid #9bb0d0', borderRadius: 2, overflow: 'hidden' }}>
+        <div data-testid="font-picker-family-list" style={{ border: '1px solid #9bb0d0', borderRadius: 2, overflow: 'hidden' }}>
           {FONT_OPTIONS.map((f) => {
             const on = f.stack === stack;
             return (
               <div
                 key={f.name}
+                data-testid="font-picker-family-item"
                 onClick={() => setStack(f.stack)}
                 className="msn-row"
                 style={{
@@ -52,12 +53,13 @@ export const FontPicker = (p: FontPickerProps) => {
         </div>
 
         <div style={{ color: '#333', margin: '12px 0 5px' }}>Color:</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        <div data-testid="font-picker-color-list" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {FONT_COLORS.map((c) => {
             const on = c === color;
             return (
               <div
                 key={c}
+                data-testid="font-picker-color-item"
                 onClick={() => setColor(c)}
                 title={c}
                 className="msn-toolbtn"
@@ -77,6 +79,7 @@ export const FontPicker = (p: FontPickerProps) => {
 
         <div style={{ color: '#333', margin: '14px 0 5px' }}>Preview:</div>
         <div
+          data-testid="font-picker-preview"
           style={{
             border: '1px solid #9bb0d0',
             borderRadius: 2,
