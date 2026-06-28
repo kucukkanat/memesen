@@ -40,6 +40,8 @@ export const initialState = (now: number): AppState => ({
   now,
   buddyTop: 18,
   buddyLeft: null,
+  buddyWidth: 272,
+  buddyHeight: 520,
   signinTop: null,
   signinLeft: null,
 });
@@ -326,6 +328,8 @@ export const reducer = (state: AppState, action: Action): AppState => {
       return { ...state, chats: mapChat(state, action.pubkey, (c) => ({ ...c, width: action.width, height: action.height })) };
     case 'MOVE_BUDDY':
       return { ...state, buddyTop: action.top, buddyLeft: action.left };
+    case 'RESIZE_BUDDY':
+      return { ...state, buddyWidth: action.width, buddyHeight: action.height };
     case 'MOVE_SIGNIN':
       return { ...state, signinTop: action.top, signinLeft: action.left };
     case 'SET_DRAFT':

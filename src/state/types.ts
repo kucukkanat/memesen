@@ -155,6 +155,8 @@ export interface AppState {
   readonly buddyTop: number;
   /** `null` => anchored to the right edge. */
   readonly buddyLeft: number | null;
+  readonly buddyWidth: number;
+  readonly buddyHeight: number;
   /** `null` => centered on screen; a number => dragged to an explicit position. */
   readonly signinTop: number | null;
   readonly signinLeft: number | null;
@@ -201,6 +203,7 @@ export type Action =
   | { type: 'MOVE_CHAT'; pubkey: string; top: number; left: number }
   | { type: 'RESIZE_CHAT'; pubkey: string; width: number; height: number }
   | { type: 'MOVE_BUDDY'; top: number; left: number }
+  | { type: 'RESIZE_BUDDY'; width: number; height: number }
   | { type: 'MOVE_SIGNIN'; top: number; left: number }
   | { type: 'SET_DRAFT'; pubkey: string; draft: string }
   | { type: 'TOGGLE_EMOJI'; pubkey: string }

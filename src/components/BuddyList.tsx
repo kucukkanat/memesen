@@ -17,6 +17,8 @@ export interface BuddyListProps {
   readonly contacts: readonly ResolvedContact[];
   readonly relaySummary: { readonly connected: number; readonly total: number };
   readonly onDrag: (e: ReactMouseEvent) => void;
+  /** Bottom-right corner drag to resize the desktop window. */
+  readonly onResize: (e: ReactMouseEvent) => void;
   readonly onSignOut: () => void;
   readonly onToggleStatusPicker: () => void;
   readonly onPickStatus: (s: SelectableStatus) => void;
@@ -179,7 +181,10 @@ export const BuddyList = (p: BuddyListProps) => {
         top: s.buddyTop,
         left: s.buddyLeft != null ? s.buddyLeft : 'auto',
         right: s.buddyLeft != null ? 'auto' : 22,
-        width: 272,
+        width: s.buddyWidth,
+        height: s.buddyHeight,
+        display: 'flex',
+        flexDirection: 'column',
         boxShadow: '0 6px 26px rgba(0,0,0,.4)',
         zIndex: 8,
       };
@@ -270,7 +275,7 @@ export const BuddyList = (p: BuddyListProps) => {
       </div>
 
       {/* contact list */}
-      <div className="msn-scroll" style={{ ...SIDE_BORDERS, background: '#fff', borderBottom: '1px solid #06387c', height: mobile ? 'auto' : 300, flex: mobile ? '1 1 0' : undefined, minHeight: 0, overflowY: 'auto', fontFamily: 'var(--msn-font)' }}>
+      <div className="msn-scroll" style={{ ...SIDE_BORDERS, background: '#fff', borderBottom: '1px solid #06387c', flex: '1 1 0', minHeight: 0, overflowY: 'auto', fontFamily: 'var(--msn-font)' }}>
         <div data-testid="buddy-group-online-toggle" onClick={() => p.onToggleGroup('online')} style={{ ...GROUP_HEADER, borderBottom: '1px solid #dce6f3' }}>
           <span style={{ fontSize: 8, width: 8 }}>{s.onlineGroupOpen ? '▼' : '▶'}</span> Online ({online.length})
         </div>
@@ -311,6 +316,28 @@ export const BuddyList = (p: BuddyListProps) => {
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: p.relaySummary.connected > 0 ? '#3fb53f' : '#c83020', boxShadow: 'inset 0 0 0 1px rgba(0,0,0,.2)' }} />
         <span>{p.relaySummary.connected}/{p.relaySummary.total} servers connected</span>
       </div>
+
+      {!mobile && (
+        <div
+          data-testid="buddy-resize-handle"
+          onMouseDown={p.onResize}
+          title="Drag to resize"
+          style={{
+            position: 'absolute',
+            right: 1,
+            bottom: 0,
+            width: 16,
+            height: 16,
+            cursor: 'nwse-resize',
+            color: '#7a93b8',
+            fontSize: 12,
+            lineHeight: '14px',
+            textAlign: 'right',
+          }}
+        >
+          ◢
+        </div>
+      )}
     </div>
   );
 };
