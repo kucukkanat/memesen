@@ -543,7 +543,10 @@ export const App = () => {
               }}
               onClose={() => { dispatch({ type: 'CLOSE_CHAT', pubkey: chat.pubkey }); setActiveChat(null); }}
               onBack={() => setActiveChat(null)}
-              onDraft={(draft) => dispatch({ type: 'SET_DRAFT', pubkey: chat.pubkey, draft })}
+              onDraft={(draft) => {
+                dispatch({ type: 'SET_DRAFT', pubkey: chat.pubkey, draft });
+                if (draft.trim()) nostr.notifyTyping(chat.pubkey);
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();

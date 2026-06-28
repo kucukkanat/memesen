@@ -350,3 +350,37 @@ describe('reducer — messaging', () => {
     expect(c?.winkGlyph).toBe('🎉');
   });
 });
+
+describe('reducer — typing indicator', () => {
+  it('lights and clears the indicator on an open conversation', () => {
+    const open = run(signedIn(), { type: 'OPEN_CHAT', pubkey: ALICE });
+    const typing = reducer(open, { type: 'CONTACT_TYPING', pubkey: ALICE });
+    expect(chatOf(typing, ALICE)?.typing).toBe(true);
+    const cleared = reducer(typing, { type: 'CLEAR_TYPING', pubkey: ALICE });
+    expect(chatOf(cleared, ALICE)?.typing).toBe(false);
+  });
+
+  it('never opens a window — a ping for an unknown chat is a no-op', () => {
+    const s = reducer(signedIn(), { type: 'CONTACT_TYPING', pubkey: ALICE });
+    expect(chatOf(s, ALICE)).toBeUndefined();
+  });
+
+  it('drops the indicator once the awaited message actually arrives', () => {
+    const s = run(signedIn(),
+      { type: 'OPEN_CHAT', pubkey: ALICE },
+      { type: 'CONTACT_TYPING', pubkey: ALICE },
+      text('e1', ALICE, 'here it is'),
+    );
+    expect(chatOf(s, ALICE)?.typing).toBe(false);
+  });
+
+  it('leaves our own echoed message without disturbing the flag', () => {
+    const s = run(signedIn(),
+      { type: 'OPEN_CHAT', pubkey: ALICE },
+      { type: 'CONTACT_TYPING', pubkey: ALICE },
+      // our own send (mine) shouldn't clear *their* typing state
+      { type: 'MESSAGE_SENT', pubkey: ALICE, id: 'm1', at: 2000, time: '(9:08 PM)', payload: { kind: 'text', body: 'hi' } },
+    );
+    expect(chatOf(s, ALICE)?.typing).toBe(true);
+  });
+});

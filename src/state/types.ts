@@ -199,4 +199,7 @@ export type Action =
   | { type: 'MESSAGE_SENT'; pubkey: string; id: string; at: number; time: string; payload: IncomingPayload }
   | { type: 'MESSAGE_RECEIVED'; id: string; partner: string; mine: boolean; at: number; time: string; payload: IncomingPayload; live: boolean }
   | { type: 'APPEND_SYSTEM'; pubkey: string; text: string }
+  // typing indicator (ephemeral; CONTACT_TYPING lights it, CLEAR_TYPING expires it)
+  | { type: 'CONTACT_TYPING'; pubkey: string }
+  | { type: 'CLEAR_TYPING'; pubkey: string }
   | { type: 'TICK'; now: number };

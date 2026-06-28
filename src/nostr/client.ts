@@ -15,7 +15,7 @@ import type { Profile, StatusKey } from '../state/types';
 import { parseProfile, serialiseProfile } from './profiles';
 import { sameRelay } from './relays';
 import { decodeWire, encodeWire, type WirePayload } from './wire';
-import { APP_DATA_READ, KIND_APP_DATA, KIND_CHAT, KIND_CONTACTS, KIND_DM_LEGACY, KIND_GIFT_WRAP, KIND_METADATA, KIND_STATUS } from './kinds';
+import { APP_DATA_READ, KIND_APP_DATA, KIND_CHAT, KIND_CONTACTS, KIND_DM_LEGACY, KIND_GIFT_WRAP, KIND_METADATA, KIND_STATUS, KIND_TYPING } from './kinds';
 
 /** A decrypted DM, normalised across NIP-17 and NIP-04 sources. */
 export interface IncomingMessage {
@@ -45,6 +45,8 @@ export interface ClientHandlers {
   readonly onFollows: (entries: ReadonlyArray<{ pubkey: string; petname: string }>) => void;
   readonly onPresence: (pubkey: string, status: StatusKey, at: number) => void;
   readonly onMessage: (message: IncomingMessage) => void;
+  /** The other party is typing us a message (ephemeral; auto-expires upstream). */
+  readonly onTyping: (pubkey: string) => void;
   readonly onRelayStatus: (url: string, status: 'connected' | 'error') => void;
   /** Read markers synced from another device (decrypted NIP-78 app data). */
   readonly onReadMarkers: (markers: Readonly<Record<string, number>>) => void;
@@ -108,6 +110,13 @@ export class NostrClient {
       this.pool.subscribe(this.relays, { kinds: [KIND_DM_LEGACY], authors: [this.pubkey] }, {
         onevent: (e) => this.onLegacyDm(e, echo.live),
         oneose: () => { echo.live = true; },
+      }),
+    );
+    // Ephemeral "is typing" pings addressed to us. Relays don't store these, so
+    // there's no backlog and no `live` gating — every delivery is real-time.
+    this.subs.push(
+      this.pool.subscribe(this.relays, { kinds: [KIND_TYPING], '#p': [this.pubkey] }, {
+        onevent: (e) => { if (e.pubkey !== this.pubkey) this.handlers.onTyping(e.pubkey); },
       }),
     );
     // Our own encrypted read markers (NIP-78). EOSE signals the backlog is
@@ -227,6 +236,18 @@ export class NostrClient {
       void Promise.allSettled(this.pool.publish(this.relays, wrap));
     }
     return rumor.id;
+  }
+
+  /**
+   * Broadcast an ephemeral "I'm typing to you" ping. Like our NIP-38 presence
+   * it's a public signal (the relay sees sender + recipient), which is
+   * consistent with this app already broadcasting status in the clear; the
+   * gift-wrapped message channel itself stays private as before. The receiver
+   * lights its typing indicator and auto-expires it, so no "stopped" ping is
+   * needed — we simply stop re-sending.
+   */
+  sendTyping(toPubkey: string): void {
+    this.publish({ kind: KIND_TYPING, content: '', tags: [['p', toPubkey]], created_at: nowSec() });
   }
 
   publishProfile(profile: Profile): void {

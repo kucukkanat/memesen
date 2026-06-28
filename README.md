@@ -26,6 +26,7 @@ and **Winks** that travel to the other person over the wire.
 | Conversation | **NIP-17** gift-wrapped private DM (kind 14 in a kind-1059 wrap) |
 | Talking to a legacy client | also decrypts inbound **NIP-04** (kind 4) |
 | Nudge / Wink | a DM carrying a private control marker, rendered as the effect |
+| "…is writing a message" | an **ephemeral** kind-20817 ping (relays forward but never store it) |
 | Connection settings | the relay manager (the five most popular relays by default) |
 
 Outbound chats are sent as **NIP-17** (wrapped once for your contact and once
@@ -174,8 +175,9 @@ swapped the *back end*, not the chrome.
   `online`, alert/e-mail) via Web Audio, with a synthesized bell fallback. Toggle
   with the 🔊 tray icon.
 - **Resizable conversation windows**, **flashing taskbar buttons** + tab title on
-  unread, the **nudge cooldown**, **auto-Away after 5 min idle**, corner toasts
-  when a contact signs in or messages you, and the ever-present ad banner.
+  unread, the **"…is writing a message" typing indicator**, the **nudge cooldown**,
+  **auto-Away after 5 min idle**, corner toasts when a contact signs in or messages
+  you, and the ever-present ad banner.
 
 Static window chrome is reproduced inline near the markup; keyframes,
 `::-webkit-scrollbar` and `:hover` states live in `src/styles.css`.

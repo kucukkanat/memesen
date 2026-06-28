@@ -21,6 +21,8 @@ export interface NostrCommands {
   readonly sendText: (pubkey: string, body: string) => void;
   readonly sendNudge: (pubkey: string) => void;
   readonly sendWink: (pubkey: string, glyph: string) => void;
+  /** Tell a contact we're typing (throttled; safe to call on every keystroke). */
+  readonly notifyTyping: (pubkey: string) => void;
   readonly setStatus: (status: SelectableStatus) => void;
   readonly setPsm: (psm: string) => void;
   readonly setName: (name: string) => void;
@@ -33,6 +35,10 @@ export interface NostrCommands {
 }
 
 const ANNOUNCE_GRACE_MS = 2500; // suppress the initial presence backlog flood
+// Re-send our "typing" ping at most this often; the receiver clears the
+// indicator after the (longer) TTL. TTL > throttle keeps it lit while typing.
+const TYPING_THROTTLE_MS = 3000;
+const TYPING_TTL_MS = 5000;
 
 export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: NostrSink): NostrCommands => {
   const clientRef = useRef<NostrClient | null>(null);
@@ -44,6 +50,10 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
   // an early publish can't replace a newer remote marker set with a partial one.
   const [readSynced, setReadSynced] = useState(false);
   const lastPublishedRead = useRef('');
+  // Per-partner expiry timers for *received* typing, and last-sent stamps that
+  // throttle our *outbound* pings. Plain refs — stable across renders.
+  const typingExpiry = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const lastTypingSent = useRef<Record<string, number>>({});
 
   // Persist the bits that must survive a reload.
   useEffect(() => saveIdentities(state.identities), [state.identities]);
@@ -106,6 +116,15 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
         // stored backlog the relay replays on every (re)connect.
         if (shouldAnnounce(message)) sinkRef.current.onIncoming(message.partner, message);
       },
+      onTyping: (pubkey) => {
+        dispatch({ type: 'CONTACT_TYPING', pubkey });
+        const timers = typingExpiry.current;
+        clearTimeout(timers[pubkey]);
+        timers[pubkey] = setTimeout(() => {
+          dispatch({ type: 'CLEAR_TYPING', pubkey });
+          delete timers[pubkey];
+        }, TYPING_TTL_MS);
+      },
       onRelayStatus: (url, status) => dispatch({ type: 'RELAY_STATUS', url, status }),
       onReadMarkers: (markers) => dispatch({ type: 'READ_MARKERS_LOADED', markers }),
       onReadSynced: () => setReadSynced(true),
@@ -119,6 +138,10 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
     return () => {
       client.close();
       clientRef.current = null;
+      // Drop any in-flight typing expiry timers tied to this client.
+      for (const timer of Object.values(typingExpiry.current)) clearTimeout(timer);
+      typingExpiry.current = {};
+      lastTypingSent.current = {};
     };
   }, [state.myPubkey, activeNsec, relayKey, dispatch]);
 
@@ -166,6 +189,15 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
     const id = client.sendDm(pubkey, { kind: 'wink', body: glyph });
     dispatch({ type: 'MESSAGE_SENT', pubkey, id, at: Math.floor(Date.now() / 1000), time: formatTime(Date.now()), payload: { kind: 'wink', body: glyph } });
   }, [dispatch]);
+
+  const notifyTyping = useCallback((pubkey: string) => {
+    const client = clientRef.current;
+    if (!client) return;
+    const now = Date.now();
+    if (now - (lastTypingSent.current[pubkey] ?? 0) < TYPING_THROTTLE_MS) return;
+    lastTypingSent.current[pubkey] = now;
+    client.sendTyping(pubkey);
+  }, []);
 
   const setStatus = useCallback((status: SelectableStatus) => {
     dispatch({ type: 'SET_STATUS', status });
@@ -217,5 +249,5 @@ export const useNostr = (state: AppState, dispatch: Dispatch<Action>, sink: Nost
 
   const lookup = useCallback((pubkey: string) => clientRef.current?.fetchProfile(pubkey), []);
 
-  return { sendText, sendNudge, sendWink, setStatus, setPsm, setName, setAvatar, addContact, removeContact, renameContact, lookup };
+  return { sendText, sendNudge, sendWink, notifyTyping, setStatus, setPsm, setName, setAvatar, addContact, removeContact, renameContact, lookup };
 };

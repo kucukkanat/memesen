@@ -148,7 +148,8 @@ const applyMessage = (state: AppState, args: ApplyArgs): AppState => {
   // backlog, which would otherwise mark genuinely-unread history as read).
   let lastReadAt = state.lastReadAt;
   if (inbound && !mine) {
-    chat = { ...chat, lastInboundAt: Math.max(chat.lastInboundAt, at) };
+    // They sent it, so they've stopped typing — drop the indicator.
+    chat = { ...chat, typing: false, lastInboundAt: Math.max(chat.lastInboundAt, at) };
     const background = existing !== undefined && existing.z !== state.zTop;
     // Live message you're actively looking at (foreground, or a brand-new
     // conversation that opens focused) counts as read; a background one flashes.
@@ -330,6 +331,13 @@ export const reducer = (state: AppState, action: Action): AppState => {
       return applyMessage(state, { pubkey: action.partner, id: action.id, mine: action.mine, at: action.at, time: action.time, payload: action.payload, inbound: true, live: action.live });
     case 'APPEND_SYSTEM':
       return { ...state, chats: mapChat(state, action.pubkey, (c) => append(c, { kind: 'system', text: action.text, at: Math.floor(state.now / 1000) })) };
+
+    // Typing only ever decorates an *existing* conversation — it never opens a
+    // window, so an unsolicited ping from a stranger can't pop one up.
+    case 'CONTACT_TYPING':
+      return { ...state, chats: mapChat(state, action.pubkey, (c) => ({ ...c, typing: true })) };
+    case 'CLEAR_TYPING':
+      return { ...state, chats: mapChat(state, action.pubkey, (c) => ({ ...c, typing: false })) };
 
     case 'READ_MARKERS_LOADED': {
       // Merge by max so neither a stale local copy nor an out-of-order relay
