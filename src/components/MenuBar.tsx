@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { MENU_BAR } from '../ui/chrome';
 
@@ -39,9 +39,7 @@ export interface MenuBarProps {
 }
 
 const DROPDOWN: CSSProperties = {
-  position: 'absolute',
-  top: '100%',
-  left: 0,
+  position: 'fixed',
   minWidth: 168,
   background: '#fff',
   border: '1px solid #8a9bb5',
@@ -51,6 +49,61 @@ const DROPDOWN: CSSProperties = {
   color: '#000',
   fontSize: 11,
   cursor: 'default',
+};
+
+/** Keep menus this far inside the window edges. */
+const EDGE_MARGIN = 4;
+
+/** The screen rectangle a menu is anchored to (a trigger or a submenu row). */
+interface Anchor {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+}
+
+const anchorOf = (el: HTMLElement): Anchor => {
+  const r = el.getBoundingClientRect();
+  return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+};
+
+/**
+ * Place a `fixed` dropdown so it never spills past the application window:
+ * it drops below (or flies right of) its anchor, then flips to the opposite
+ * side or clamps to the edge when there isn't room. Measured after layout but
+ * before paint, so the menu only ever appears in its final, on-screen spot.
+ */
+const useFitInWindow = (anchor: Anchor, side: 'below' | 'right') => {
+  const ref = useRef<HTMLDivElement>(null);
+  const initial = side === 'below' ? { left: anchor.left, top: anchor.bottom } : { left: anchor.right, top: anchor.top - 3 };
+  const [pos, setPos] = useState(initial);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const { width, height } = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    let left = side === 'below' ? anchor.left : anchor.right;
+    let top = side === 'below' ? anchor.bottom : anchor.top - 3;
+
+    // Horizontal: a submenu with no room on the right flips to the left of its
+    // parent; a top-level menu that runs off the right slides back in.
+    if (side === 'right' && left + width > vw - EDGE_MARGIN) left = anchor.left - width;
+    if (left + width > vw - EDGE_MARGIN) left = vw - EDGE_MARGIN - width;
+    if (left < EDGE_MARGIN) left = EDGE_MARGIN;
+
+    // Vertical: a top-level menu with no room below pops above its trigger;
+    // otherwise (and for submenus) clamp within the window.
+    if (side === 'below' && top + height > vh - EDGE_MARGIN && anchor.top - height >= EDGE_MARGIN) top = anchor.top - height;
+    if (top + height > vh - EDGE_MARGIN) top = vh - EDGE_MARGIN - height;
+    if (top < EDGE_MARGIN) top = EDGE_MARGIN;
+
+    setPos((cur) => (cur.left === left && cur.top === top ? cur : { left, top }));
+  }, [anchor.left, anchor.top, anchor.right, anchor.bottom, side]);
+
+  return { ref, pos };
 };
 
 const ROW: CSSProperties = {
@@ -78,11 +131,12 @@ const Label = ({ text, access }: { text: string; access: string | undefined }): 
   );
 };
 
-const Dropdown = ({ items, onClose }: { items: readonly MenuNode[]; onClose: () => void }) => {
-  // Which submenu (by index) is currently flown out.
-  const [openSub, setOpenSub] = useState<number | null>(null);
+const Dropdown = ({ items, onClose, anchor, side }: { items: readonly MenuNode[]; onClose: () => void; anchor: Anchor; side: 'below' | 'right' }) => {
+  // Which submenu (by index) is currently flown out, and the row it anchors to.
+  const [openSub, setOpenSub] = useState<{ index: number; anchor: Anchor } | null>(null);
+  const { ref, pos } = useFitInWindow(anchor, side);
   return (
-    <div data-testid="menubar-menu" style={DROPDOWN} onMouseDown={(e) => e.stopPropagation()}>
+    <div ref={ref} data-testid="menubar-menu" style={{ ...DROPDOWN, left: pos.left, top: pos.top }} onMouseDown={(e) => e.stopPropagation()}>
       {items.map((node, i) => {
         if (node.kind === 'separator') return <div key={i} data-testid="menubar-menu-separator" style={SEPARATOR} />;
         if (node.kind === 'submenu') {
@@ -90,17 +144,17 @@ const Dropdown = ({ items, onClose }: { items: readonly MenuNode[]; onClose: () 
             <div
               key={i}
               style={{ position: 'relative' }}
-              onMouseEnter={() => setOpenSub(i)}
-              onMouseLeave={() => setOpenSub((cur) => (cur === i ? null : cur))}
+              onMouseEnter={(e) => setOpenSub({ index: i, anchor: anchorOf(e.currentTarget) })}
+              onMouseLeave={() => setOpenSub((cur) => (cur?.index === i ? null : cur))}
             >
               <div data-testid="menubar-menu-item" className="msn-menuitem" style={{ ...ROW, justifyContent: 'space-between' }}>
                 <span>{node.label}</span>
                 <span style={{ fontSize: 9 }}>▶</span>
               </div>
-              {openSub === i && (
-                <div style={{ position: 'absolute', top: -3, left: '100%' }}>
-                  <Dropdown items={node.items} onClose={onClose} />
-                </div>
+              {openSub?.index === i && (
+                // Fixed-positioned, so it stays a DOM child (hover stays open)
+                // while being laid out against the window, not this menu.
+                <Dropdown items={node.items} onClose={onClose} anchor={openSub.anchor} side="right" />
               )}
             </div>
           );
@@ -131,7 +185,8 @@ const Dropdown = ({ items, onClose }: { items: readonly MenuNode[]; onClose: () 
 };
 
 export const MenuBar = ({ menus, style, trailing }: MenuBarProps) => {
-  const [open, setOpen] = useState<number | null>(null);
+  // The open top-level menu, with the screen rect of its trigger to anchor to.
+  const [open, setOpen] = useState<{ index: number; anchor: Anchor } | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
 
   // Close on click anywhere outside the bar, and on Escape.
@@ -162,14 +217,18 @@ export const MenuBar = ({ menus, style, trailing }: MenuBarProps) => {
             // hallmark of a real Win32 menu bar.
             onMouseDown={(e) => {
               e.stopPropagation();
-              setOpen((cur) => (cur === i ? null : i));
+              const anchor = anchorOf(e.currentTarget);
+              setOpen((cur) => (cur?.index === i ? null : { index: i, anchor }));
             }}
-            onMouseEnter={() => setOpen((cur) => (cur === null ? cur : i))}
-            style={{ background: open === i ? '#316ac5' : undefined, color: open === i ? '#fff' : undefined, padding: '0 4px', borderRadius: 2 }}
+            onMouseEnter={(e) => {
+              const anchor = anchorOf(e.currentTarget);
+              setOpen((cur) => (cur === null ? cur : { index: i, anchor }));
+            }}
+            style={{ background: open?.index === i ? '#316ac5' : undefined, color: open?.index === i ? '#fff' : undefined, padding: '0 4px', borderRadius: 2 }}
           >
             <Label text={menu.label} access={menu.access} />
           </span>
-          {open === i && <Dropdown items={menu.items} onClose={() => setOpen(null)} />}
+          {open?.index === i && <Dropdown items={menu.items} onClose={() => setOpen(null)} anchor={open.anchor} side="below" />}
         </div>
       ))}
       {trailing && (
