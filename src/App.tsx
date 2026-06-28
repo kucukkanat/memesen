@@ -488,11 +488,12 @@ export const App = () => {
   }), [nostr]);
 
   const confirmRemoval = useCallback(() => {
-    setPendingRemoval((pubkey) => {
-      if (pubkey) dispatch({ type: 'REMOVE_CONTACT', pubkey });
-      return null;
-    });
-  }, []);
+    // Route through nostr.removeContact (not a bare dispatch) so the updated
+    // follow list is republished to the relays — otherwise a refresh re-fetches
+    // the stale kind-3 contact list and the removed contact reappears.
+    if (pendingRemoval) nostr.removeContact(pendingRemoval);
+    setPendingRemoval(null);
+  }, [pendingRemoval, nostr]);
 
   const acceptInvite = useCallback(() => {
     if (pendingInvite && !stateRef.current.follows.includes(pendingInvite)) nostr.addContact(pendingInvite, '');
