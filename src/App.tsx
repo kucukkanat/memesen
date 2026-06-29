@@ -681,6 +681,7 @@ export const App = () => {
             contacts={contacts}
             relaySummary={relaySummary}
             onDrag={(e: ReactMouseEvent) => drag(e, ({ top, left }) => dispatch({ type: 'MOVE_BUDDY', top, left }))}
+            onFocus={() => dispatch({ type: 'FOCUS_BUDDY' })}
             onResize={(e: ReactMouseEvent) =>
               resize(e, { width: 240, height: 360 }, ({ width, height }) => dispatch({ type: 'RESIZE_BUDDY', width, height }))
             }

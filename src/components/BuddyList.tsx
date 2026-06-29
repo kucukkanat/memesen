@@ -17,6 +17,8 @@ export interface BuddyListProps {
   readonly contacts: readonly ResolvedContact[];
   readonly relaySummary: { readonly connected: number; readonly total: number };
   readonly onDrag: (e: ReactMouseEvent) => void;
+  /** Raise the desktop window above the chat windows when clicked. */
+  readonly onFocus: () => void;
   /** Bottom-right corner drag to resize the desktop window. */
   readonly onResize: (e: ReactMouseEvent) => void;
   readonly onSignOut: () => void;
@@ -190,7 +192,7 @@ export const BuddyList = (p: BuddyListProps) => {
       };
 
   return (
-    <div data-testid="buddy-window" data-win="buddy" style={frame}>
+    <div data-testid="buddy-window" data-win="buddy" onMouseDown={mobile ? undefined : p.onFocus} style={frame}>
       {/* title bar */}
       <div
         onMouseDown={mobile ? undefined : p.onDrag}
