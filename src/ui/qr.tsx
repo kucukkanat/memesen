@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import encodeQR from '@paulmillr/qr';
 
 export interface QrCodeProps {
-  /** The text the QR encodes — here, an `nsec…` for the account handoff. */
+  /** The text the QR encodes — here, the handoff URL for the account move. */
   readonly text: string;
   /** Rendered side length in px (the SVG scales to fill). */
   readonly size: number;

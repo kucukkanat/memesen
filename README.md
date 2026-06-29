@@ -45,7 +45,7 @@ bun dev          # hot-reloading dev server → http://localhost:3000
 
 On first launch, click **Create a new account** (mints a fresh `nsec`) or
 **Move or import an account** to bring an existing Nostr account (scan a QR from
-another device, or paste an `nsec`/recovery phrase). Pick a status and
+another device with your phone's camera, or paste an `nsec`/recovery phrase). Pick a status and
 **Sign In** — Messenger connects to the default relays, pulls your profile,
 follow list and contacts' presence, and starts listening for DMs. Your account is
 remembered and auto-signs-in next time.
@@ -61,10 +61,11 @@ carrying that key across. **Move account** (in the buddy list) opens one dialog
 with three ways to do it, all gated behind a single "show secret" so a glance
 can't leak it:
 
-- **📱 To my phone** — a QR code of your key. On the phone, open the app →
-  **Move or import an account** → **Scan a QR code**, point it at the screen,
-  and you're signed in. The phone's rear camera is used; nothing touches the
-  network (the QR is decoded entirely on-device).
+- **📱 To my phone** — a QR code of a link to this app that carries your key.
+  Point your phone's **own camera** (or any QR app) at it, tap the link, and
+  Memesen opens already signed in — no in-app scanner needed. The key rides in
+  the URL *fragment* (`#key=…`), which browsers never send to a server, so it
+  isn't logged in transit; the app strips it from the URL the moment it's used.
 - **🔑 Secret key** — copy the `nsec…`, or **Save as file** for a backup.
 - **✍️ Recovery words** — a 24-word phrase that encodes the *exact* key bytes
   (BIP-39 encoding of the raw secret, not NIP-06 derivation — so it round-trips

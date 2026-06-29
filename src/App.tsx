@@ -13,7 +13,7 @@ import { useNostr, type NostrSink } from './hooks/useNostr';
 import { loadActive, loadFont, loadIdentities, loadReadMarkers, loadRelays } from './nostr/identity';
 import { normaliseRelay } from './nostr/relays';
 import { processImage } from './nostr/images';
-import { avatarFor, createKeyPair, npubOf, pubkeyFromInput, secretFromInput, shortNpub } from './nostr/keys';
+import { avatarFor, createKeyPair, importHash, npubOf, pubkeyFromInput, secretFromHash, secretFromInput, shortNpub } from './nostr/keys';
 import { isNip05, queryProfile } from 'nostr-tools/nip05';
 import { useWindowSwitcher, type SwitcherWindow } from './hooks/useWindowSwitcher';
 import { Switcher } from './components/Switcher';
@@ -157,6 +157,14 @@ export const App = () => {
     [],
   );
 
+  // The QR shown to move an account onto a phone: this app's URL with the secret
+  // key in the fragment (see `importHash` — fragment, not query, so the key never
+  // reaches the host).
+  const importLinkFor = useCallback(
+    (nsec: string) => `${window.location.origin}${window.location.pathname}${importHash(nsec)}`,
+    [],
+  );
+
   // Copy text, confirming with a toast; falls back to a prompt if the
   // Clipboard API is unavailable (e.g. insecure context).
   const copy = useCallback((text: string, label: string) => {
@@ -189,6 +197,14 @@ export const App = () => {
     if (!url.searchParams.has('add')) return;
     url.searchParams.delete('add');
     window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+  }, []);
+
+  // Scrub the `#key=…` handoff fragment so the secret doesn't linger in the URL,
+  // the address bar, or the browser history after we've consumed it.
+  const clearImportHash = useCallback(() => {
+    if (!window.location.hash) return;
+    const { pathname, search } = window.location;
+    window.history.replaceState({}, '', `${pathname}${search}`);
   }, []);
 
   // UX side-effects for inbound relay events (sounds, toasts, effect timers).
@@ -401,6 +417,17 @@ export const App = () => {
     doSignIn(identity);
     return null;
   }, [doSignIn]);
+
+  // Pick up a `#key=<nsec>` account-handoff link on load: import that key and
+  // sign in, then immediately scrub the fragment. Any phone QR reader can open
+  // this, so the import "just happens" with no in-app scanner.
+  useEffect(() => {
+    const secret = secretFromHash(window.location.hash);
+    if (!secret) return;
+    clearImportHash();
+    const err = importSecret(secret);
+    if (err) pushAlert('warning', 'Move account', err);
+  }, [importSecret, clearImportHash, pushAlert]);
 
   const signOut = useCallback(() => {
     playSound('offline');
@@ -808,6 +835,7 @@ export const App = () => {
             avatar={state.myAvatar}
             nsec={me.nsec}
             npub={npubOf(state.myPubkey)}
+            importLink={importLinkFor(me.nsec)}
             onCopy={copy}
             onClose={() => setExportOpen(false)}
           />

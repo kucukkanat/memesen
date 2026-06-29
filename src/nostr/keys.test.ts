@@ -2,9 +2,9 @@ import { describe, expect, it } from 'bun:test';
 import { hexToBytes } from '@noble/hashes/utils.js';
 import * as nip19 from 'nostr-tools/nip19';
 import {
-  AVATAR_KEYS, avatarFor, createKeyPair, isRecoveryPhrase, npubOf,
+  AVATAR_KEYS, avatarFor, createKeyPair, importHash, isRecoveryPhrase, npubOf,
   nsecFromPhrase, phraseFromNsec, pubkeyFromInput, pubkeyFromNsec,
-  secretFromInput, shortNpub,
+  secretFromHash, secretFromInput, shortNpub,
 } from './keys';
 
 describe('keys — generation and encoding', () => {
@@ -79,6 +79,28 @@ describe('keys — unified secret import', () => {
   it('returns null for unparseable input', () => {
     expect(secretFromInput('definitely not a key')).toBeNull();
     expect(secretFromInput('npub1' + 'q'.repeat(58))).toBeNull();
+  });
+});
+
+describe('keys — account-handoff link', () => {
+  it('round-trips an nsec through the handoff fragment and feeds secretFromInput', () => {
+    const { pubkey, nsec } = createKeyPair();
+    const hash = importHash(nsec);
+    expect(hash.startsWith('#key=')).toBe(true);
+    const recovered = secretFromHash(hash);
+    expect(recovered).toBe(nsec);
+    expect(secretFromInput(recovered!)?.pubkey).toBe(pubkey);
+  });
+
+  it('reads the fragment with or without the leading #', () => {
+    const { nsec } = createKeyPair();
+    expect(secretFromHash(`key=${nsec}`)).toBe(nsec);
+  });
+
+  it('ignores other fragment params and returns null when no key is present', () => {
+    expect(secretFromHash('')).toBeNull();
+    expect(secretFromHash('#add=npub1foo')).toBeNull();
+    expect(secretFromHash('#key=')).toBeNull();
   });
 });
 

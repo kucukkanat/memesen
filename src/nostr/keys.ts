@@ -102,6 +102,25 @@ export const pubkeyFromInput = (input: string): string | null => {
   }
 };
 
+// --- account-handoff link -------------------------------------------------
+// Moving an account to a phone is a QR of a URL that opens this app with the
+// secret key in tow. The key rides in the URL *fragment* (`#…`), never the
+// query string, because the fragment is never sent to (or logged by) the host —
+// only the browser sees it. Any phone's built-in camera can open the link and
+// the app signs in automatically, so we need no in-app QR scanner.
+
+const IMPORT_HASH_KEY = 'key';
+
+/** Build the handoff fragment (e.g. `#key=nsec1…`) carrying an `nsec…`. */
+export const importHash = (nsec: string): string =>
+  `#${IMPORT_HASH_KEY}=${encodeURIComponent(nsec.trim())}`;
+
+/** Pull a handoff secret out of a URL fragment, or null when there isn't one. */
+export const secretFromHash = (hash: string): string | null => {
+  const value = new URLSearchParams(hash.replace(/^#/, '')).get(IMPORT_HASH_KEY)?.trim();
+  return value ? value : null;
+};
+
 /** Full `npub…` for a hex pubkey. */
 export const npubOf = (pubkey: string): string => nip19.npubEncode(pubkey);
 

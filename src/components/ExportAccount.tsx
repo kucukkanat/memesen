@@ -11,6 +11,8 @@ export interface ExportAccountProps {
   readonly avatar: string;
   readonly nsec: string;
   readonly npub: string;
+  /** A link that opens this app and signs in with this account — the QR target. */
+  readonly importLink: string;
   readonly onCopy: (text: string, label: string) => void;
   readonly onClose: () => void;
 }
@@ -114,11 +116,11 @@ export const ExportAccount = (p: ExportAccountProps) => {
             </div>
           ) : tab === 'phone' ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-              <QrCode text={p.nsec} size={184} />
+              <QrCode text={p.importLink} size={184} />
               <ol style={{ margin: 0, paddingLeft: 18, fontSize: 11, color: '#333', lineHeight: 1.55, alignSelf: 'stretch' }}>
-                <li>On your phone, open <b>Memesen</b> and tap <b>Move or import an account</b>.</li>
-                <li>Tap <b>Scan a QR code</b>.</li>
-                <li>Point the camera at this square.</li>
+                <li>On your phone, open the <b>camera</b> (or any QR-code app).</li>
+                <li>Point it at this square.</li>
+                <li>Tap the link that appears — <b>Memesen</b> opens and signs you in.</li>
               </ol>
             </div>
           ) : tab === 'key' ? (
