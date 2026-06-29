@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { isPresenceFresh, isPublishAccepted, shouldAnnounce, shouldAnnounceOnline, shouldReconnectOnResume, type IncomingMessage } from './client';
+import { isLiveMessage, isPresenceFresh, isPublishAccepted, LIVE_SKEW_MS, shouldAnnounce, shouldAnnounceOnline, shouldReconnectOnResume, type IncomingMessage } from './client';
 import { PRESENCE_TTL_MS } from '../state/data';
 
 const msg = (over: Partial<IncomingMessage>): IncomingMessage => ({
@@ -23,6 +23,30 @@ describe('shouldAnnounce', () => {
 
   it('never announces our own echoed messages', () => {
     expect(shouldAnnounce(msg({ mine: true, live: true }))).toBe(false);
+  });
+});
+
+describe('isLiveMessage', () => {
+  const CONNECTED = 1_700_000_000; // seconds
+  const skew = Math.floor(LIVE_SKEW_MS / 1000);
+
+  it('is live for a fresh message seen after EOSE', () => {
+    expect(isLiveMessage(true, CONNECTED + 5, CONNECTED)).toBe(true);
+  });
+
+  it('stays silent for backlog still streaming before EOSE', () => {
+    expect(isLiveMessage(false, CONNECTED + 5, CONNECTED)).toBe(false);
+  });
+
+  it('stays silent for old backlog even when EOSE raced true (slow relay drain)', () => {
+    // The bug: a large stored history trips nostr-tools' ~4.4s eoseTimeout
+    // mid-replay, so `eoseLive` is true while old messages are still arriving.
+    expect(isLiveMessage(true, CONNECTED - 3600, CONNECTED)).toBe(false);
+  });
+
+  it('tolerates modest clock skew so a genuinely new message still announces', () => {
+    expect(isLiveMessage(true, CONNECTED - skew + 1, CONNECTED)).toBe(true);
+    expect(isLiveMessage(true, CONNECTED - skew - 1, CONNECTED)).toBe(false);
   });
 });
 

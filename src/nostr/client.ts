@@ -41,6 +41,28 @@ export interface IncomingMessage {
  */
 export const shouldAnnounce = (message: IncomingMessage): boolean => !message.mine && message.live;
 
+// Sender/receiver clock skew tolerated before a message is judged "backlog". Far
+// smaller than any "away a long while" gap, so it never reopens the flood window,
+// but generous enough to cover ordinary clock drift between peers.
+export const LIVE_SKEW_MS = 60_000;
+
+/**
+ * Whether a DM is genuinely *new* (toast-worthy), hardened against a relay that's
+ * slow to stream a large backlog. EOSE alone isn't enough: nostr-tools fires a
+ * subscription's `oneose` once every relay has EOSE'd *or hit its ~4.4s
+ * eoseTimeout*, so a relay still replaying a big stored history when that timer
+ * trips flips `live` true mid-backlog — and every remaining old message would
+ * then toast. We additionally require the message's real send time to be at/after
+ * the moment we (re)subscribed: backlog is older, so it stays silent even when
+ * `eoseLive` races true. `skewMs` absorbs modest peer clock differences.
+ */
+export const isLiveMessage = (
+  eoseLive: boolean,
+  createdAtSec: number,
+  connectedAtSec: number,
+  skewMs: number = LIVE_SKEW_MS,
+): boolean => eoseLive && createdAtSec * 1000 >= connectedAtSec * 1000 - skewMs;
+
 /**
  * Whether a single relay accepted a publish. `pool.publish` resolves each relay
  * to its `OK` reason string on success, but *also* resolves (not rejects) with a
@@ -143,6 +165,12 @@ export class NostrClient {
   private healthTimer: ReturnType<typeof setInterval> | null = null;
   /** Set on close so an in-flight send retry loop stops touching a dead pool. */
   private closed = false;
+  /**
+   * When the live subscriptions were last (re)opened, in seconds. Everything sent
+   * before this is backlog; combined with EOSE it makes "new message" immune to a
+   * slow relay tripping the eoseTimeout mid-replay (see {@link isLiveMessage}).
+   */
+  private connectedAtSec = 0;
 
   constructor(
     private readonly secret: Uint8Array,
@@ -190,6 +218,9 @@ export class NostrClient {
   }
 
   private openSubscriptions(): void {
+    // Mark the backlog/live boundary: messages stamped before now are history the
+    // relay is about to replay, regardless of when its EOSE actually lands.
+    this.connectedAtSec = nowSec();
     // Our own metadata, follow list and presence (and any future edits to them).
     const own = { live: false };
     this.subs.push(
@@ -307,7 +338,7 @@ export class NostrClient {
       const mine = rumor.pubkey === this.pubkey;
       const partner = mine ? tag(rumor, 'p')?.[1] : rumor.pubkey;
       if (!partner) return;
-      this.handlers.onMessage({ id: rumor.id, partner, mine, createdAt: rumor.created_at, payload: decodeWire(rumor.content), live });
+      this.handlers.onMessage({ id: rumor.id, partner, mine, createdAt: rumor.created_at, payload: decodeWire(rumor.content), live: isLiveMessage(live, rumor.created_at, this.connectedAtSec) });
     } catch {
       // A wrap we can't open (not ours / malformed) is silently ignored.
     }
@@ -319,7 +350,7 @@ export class NostrClient {
     if (!partner) return;
     try {
       const text = nip04.decrypt(this.secret, partner, event.content);
-      this.handlers.onMessage({ id: event.id, partner, mine, createdAt: event.created_at, payload: decodeWire(text), live });
+      this.handlers.onMessage({ id: event.id, partner, mine, createdAt: event.created_at, payload: decodeWire(text), live: isLiveMessage(live, event.created_at, this.connectedAtSec) });
     } catch {
       // Undecryptable legacy DM — ignore.
     }
